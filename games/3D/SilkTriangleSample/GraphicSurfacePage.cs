@@ -6,6 +6,7 @@ namespace SilkTriangleSample;
 public sealed class GraphicSurfacePage : ContentPage
 {
     private readonly IModelImporter modelImporter;
+    private readonly IAssetCache assetCache = new ModelAssetCache();
     private readonly SilkModelDiagnostic diagnostic;
     private readonly Label statusLabel;
     private bool importStarted;
@@ -58,11 +59,17 @@ public sealed class GraphicSurfacePage : ContentPage
             var model = await Task.Run(() =>
             {
                 using var stream = new MemoryStream(assetData, writable: false);
-                return modelImporter.Import(stream, "obj");
+                var settings = new AssetImportSettings { GenerateNormals = true, Triangulate = true, JoinIdenticalVertices = true, FlipUVs = true };
+                return assetCache.GetOrAdd("poly.obj", () => modelImporter.Import(stream, "obj"), settings);
             });
 
+            var scene = new Scene3D();
+            var rootNode = new Node3D { Name = "poly.obj", Model = model };
+            rootNode.SetParent(scene.RootNode);
+            var renderQueue = scene.BuildRenderQueue();
+
             diagnostic.SetModel(model);
-            statusLabel.Text = $"poly.obj: {model.Meshes.Count} mesh";
+            statusLabel.Text = $"Runtime scene ready: {renderQueue.Count} queued meshes";
         }
         catch (Exception exception)
         {

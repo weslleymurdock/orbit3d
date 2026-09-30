@@ -16,6 +16,11 @@ public class Node3D
     public Transform3D Transform { get; } = new Transform3D();
 
     /// <summary>
+    /// Gets the world matrix for this node.
+    /// </summary>
+    public System.Numerics.Matrix4x4 WorldMatrix => Transform.WorldMatrix;
+
+    /// <summary>
     /// Gets or sets the model associated with this node, if any.
     /// </summary>
     public Model3D? Model { get; set; }
@@ -31,6 +36,19 @@ public class Node3D
     /// Gets the list of child nodes.
     /// </summary>
     public IReadOnlyList<Node3D> Children => _children;
+
+    /// <summary>
+    /// Enumerates the node and all descendants in depth-first order.
+    /// </summary>
+    public IEnumerable<Node3D> EnumerateDescendants()
+    {
+        foreach (var child in _children)
+        {
+            yield return child;
+            foreach (var descendant in child.EnumerateDescendants())
+                yield return descendant;
+        }
+    }
 
     /// <summary>
     /// Sets the parent of this node and updates the transform hierarchy.

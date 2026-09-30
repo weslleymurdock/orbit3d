@@ -21,6 +21,11 @@ public class Node3D
     public System.Numerics.Matrix4x4 WorldMatrix => Transform.WorldMatrix;
 
     /// <summary>
+    /// Gets or sets a value indicating whether this node participates in the active render queue.
+    /// </summary>
+    public bool IsVisible { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets the model associated with this node, if any.
     /// </summary>
     public Model3D? Model { get; set; }

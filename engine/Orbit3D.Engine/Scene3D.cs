@@ -40,6 +40,21 @@ public class Scene3D
     }
 
     /// <summary>
+    /// Builds a render queue and applies the active camera view/projection setup for runtime rendering.
+    /// </summary>
+    public RenderQueue3D BuildRenderQueue(Camera3D? camera, int viewportWidth = 0, int viewportHeight = 0)
+    {
+        if (camera is not null)
+        {
+            camera.AspectRatio = viewportWidth > 0 && viewportHeight > 0 ? viewportWidth / (float)viewportHeight : camera.AspectRatio;
+        }
+
+        var queue = new RenderQueue3D();
+        PopulateRenderQueue(RootNode, queue, 0, camera);
+        return queue;
+    }
+
+    /// <summary>
     /// Creates a render queue from the scene hierarchy.
     /// </summary>
     public RenderQueue3D CreateRenderQueue() => BuildRenderQueue();
@@ -49,9 +64,9 @@ public class Scene3D
     /// </summary>
     public RenderQueue3D GetRenderQueue() => BuildRenderQueue();
 
-    private static void PopulateRenderQueue(Node3D node, RenderQueue3D queue, int sortKey)
+    private static void PopulateRenderQueue(Node3D node, RenderQueue3D queue, int sortKey, Camera3D? camera = null)
     {
-        if (node.Model is not null)
+        if (node.Model is not null && node.IsVisible)
         {
             var world = node.WorldMatrix;
             foreach (var mesh in node.Model.Meshes)
@@ -66,6 +81,7 @@ public class Scene3D
                     Mesh = mesh,
                     Material = material,
                     WorldMatrix = world,
+                    IsVisible = mesh is not null && node.IsVisible,
                     SortKey = sortKey
                 });
             }
@@ -73,6 +89,6 @@ public class Scene3D
 
         var childSortKey = sortKey + 1;
         foreach (var child in node.Children)
-            PopulateRenderQueue(child, queue, childSortKey);
+            PopulateRenderQueue(child, queue, childSortKey, camera);
     }
 }

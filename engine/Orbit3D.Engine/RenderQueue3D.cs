@@ -28,6 +28,11 @@ public sealed class RenderItem3D
     public Matrix4x4 WorldMatrix { get; set; } = Matrix4x4.Identity;
 
     /// <summary>
+    /// Gets or sets the camera-relative visibility flag for the item.
+    /// </summary>
+    public bool IsVisible { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a stable ordering hint for deterministic traversal.
     /// </summary>
     public int SortKey { get; set; }

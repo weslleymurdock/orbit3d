@@ -1,3 +1,5 @@
+using Microsoft.Maui.Hosting;
+using Orbit3D.Engine;
 using Orbit3D.Engine.Graphics;
 using Orbit3D.Graphics.Silk;
 
@@ -13,6 +15,16 @@ public class SilkGraphicsBackendTests
             () => false,
             () => { },
             isOpenGles: false));
+    }
+
+    [Fact]
+    public void UseOrbit3DEngine_RegistersModelImporter()
+    {
+        var builder = MauiApp.CreateBuilder();
+
+        builder.UseOrbit3DEngine();
+
+        Assert.Contains(builder.Services, descriptor => descriptor.ServiceType == typeof(IModelImporter));
     }
 
     [Fact]

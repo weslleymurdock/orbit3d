@@ -98,13 +98,12 @@ internal sealed class SilkGLSurfaceView : GLSurfaceView
             if (_context is not null)
                 surface.RaiseContextLost(_context);
 
-            var currentContext = EGL14.EglGetCurrentContext();
-            if (currentContext is null)
+            var contextHandle = GetCurrentEglContextHandle();
+            if (contextHandle == 0)
                 throw new InvalidOperationException("GLSurfaceView did not make an EGL context current.");
-            var contextHandle = currentContext.Handle;
             _context = new SilkGraphicsContext(
                 GetProcAddress,
-                () => EGL14.EglGetCurrentContext()?.Handle == contextHandle,
+                () => GetCurrentEglContextHandle() == contextHandle,
                 present: null,
                 isOpenGles: true,
                 presentAfterRenderCallback: true);
@@ -124,6 +123,9 @@ internal sealed class SilkGLSurfaceView : GLSurfaceView
         }
 
         private static nint GetProcAddress(string name) => EglGetProcAddress(name);
+
+        [DllImport("EGL", EntryPoint = "eglGetCurrentContext", CallingConvention = CallingConvention.Cdecl)]
+        private static extern nint GetCurrentEglContextHandle();
 
         [DllImport("EGL", EntryPoint = "eglGetProcAddress", CallingConvention = CallingConvention.Cdecl)]
         private static extern nint EglGetProcAddress([MarshalAs(UnmanagedType.LPUTF8Str)] string name);

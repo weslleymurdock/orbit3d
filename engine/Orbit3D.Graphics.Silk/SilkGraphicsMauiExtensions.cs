@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls.Hosting;
 using Microsoft.Maui.LifecycleEvents;
+using Orbit3D.Engine;
 
 namespace Orbit3D.Graphics.Silk;
 
@@ -11,6 +12,7 @@ public static class SilkGraphicsMauiExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 #if ANDROID
+        builder.UseOrbit3DEngine();
         builder.ConfigureMauiHandlers(handlers =>
             handlers.AddHandler<SilkGraphicsSurface, SilkGraphicsSurfaceHandler>());
         builder.ConfigureLifecycleEvents(events => events.AddAndroid(android =>

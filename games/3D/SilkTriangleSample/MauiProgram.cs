@@ -13,13 +13,17 @@ public static class MauiProgram
 		builder
 			.UseMauiApp<App>()
 #if ANDROID
-            .UseSilkGraphics()
+			.UseSilkGraphics()
 #endif
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
 			});
+
+#if ANDROID
+        builder.Services.AddTransient<GraphicSurfacePage>();
+#endif
 
 #if DEBUG
 		builder.Logging.AddDebug();

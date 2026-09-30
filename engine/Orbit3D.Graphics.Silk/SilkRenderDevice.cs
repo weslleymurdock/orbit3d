@@ -67,16 +67,21 @@ public sealed class SilkRenderDevice : IRenderDevice
         ValidateDataLength(expected, data.Length);
 
         var gl = Context.Api;
+        var vertexArray = gl.GenVertexArray();
         var buffer = gl.GenBuffer();
         try
         {
-            gl.BindBuffer(BufferTargetARB.ArrayBuffer, buffer);
-            gl.BufferData(BufferTargetARB.ArrayBuffer, data, BufferUsageARB.StaticDraw);
-            gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
+            gl.BindVertexArray(vertexArray);
+            gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, buffer);
+            gl.BufferData(BufferTargetARB.ElementArrayBuffer, data, BufferUsageARB.StaticDraw);
+            gl.BindVertexArray(0);
+            gl.DeleteVertexArray(vertexArray);
             return Register(new SilkIndexBuffer(this, description, buffer));
         }
         catch
         {
+            gl.BindVertexArray(0);
+            gl.DeleteVertexArray(vertexArray);
             gl.DeleteBuffer(buffer);
             throw;
         }
@@ -158,8 +163,15 @@ public sealed class SilkRenderDevice : IRenderDevice
             gl.BindTexture(TextureTarget.Texture2D, color);
             gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
             gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            gl.TexImage2D(TextureTarget.Texture2D, 0, (int)InternalFormat.Rgba8,
-                (uint)description.Width, (uint)description.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte,
+            var (internalFormat, pixelFormat) = description.ColorFormat switch
+            {
+                TextureFormat.R8Unorm => (InternalFormat.R8, PixelFormat.Red),
+                TextureFormat.Rgba8Unorm => (InternalFormat.Rgba8, PixelFormat.Rgba),
+                TextureFormat.Rgba8Srgb => (InternalFormat.Srgb8Alpha8, PixelFormat.Rgba),
+                _ => throw new ArgumentOutOfRangeException(nameof(description))
+            };
+            gl.TexImage2D(TextureTarget.Texture2D, 0, (int)internalFormat,
+                (uint)description.Width, (uint)description.Height, 0, pixelFormat, PixelType.UnsignedByte,
                 ReadOnlySpan<byte>.Empty);
             gl.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
@@ -198,10 +210,14 @@ public sealed class SilkRenderDevice : IRenderDevice
         if (IsDisposed)
             return;
 
-        Context.EnsureCurrent();
         IsDisposed = true;
         foreach (var resource in _resources.ToArray())
-            resource.Dispose();
+        {
+            if (Context.IsCurrent)
+                resource.Dispose();
+            else
+                ((SilkResource)resource).Abandon();
+        }
         Context.DisposeApi();
     }
 
@@ -213,6 +229,8 @@ public sealed class SilkRenderDevice : IRenderDevice
         if (resource.IsDisposed)
             throw new ObjectDisposedException(resource.GetType().Name);
     }
+
+    internal void Unregister(IGraphicsResource resource) => _resources.Remove(resource);
 
     private static void ValidateDescription(VertexBufferDescription description, int actualLength, string paramName)
     {
@@ -241,6 +259,9 @@ public sealed class SilkRenderDevice : IRenderDevice
 
     internal static void ConfigureVertexLayout(GL gl, int stride, int firstVertex = 0)
     {
+        if (stride is not (12 or 20 or 24 or 32 or 44))
+            throw new ArgumentException("Vertex stride must match position, position/UV, position/normal, position/normal/UV, or position/normal/UV/tangent layout.", nameof(stride));
+
         var offset = checked(firstVertex * stride);
         gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, (uint)stride, (nint)offset);
         gl.EnableVertexAttribArray(0);
@@ -267,10 +288,6 @@ public sealed class SilkRenderDevice : IRenderDevice
                 gl.VertexAttribPointer(3, 3, VertexAttribPointerType.Float, false, (uint)stride, (nint)offset);
                 gl.EnableVertexAttribArray(3);
             }
-        }
-        else if (stride is not (12 or 20 or 24))
-        {
-            throw new ArgumentException("Vertex stride must match position, position/UV, position/normal, position/normal/UV, or position/normal/UV/tangent layout.", nameof(stride));
         }
     }
 
@@ -360,7 +377,7 @@ public sealed class SilkRenderDevice : IRenderDevice
     {
         var version = gles ? "#version 300 es\nprecision mediump float;\n" : "#version 330 core\n";
         var lighting = kind == ShaderProgramKind.BasicLit
-            ? "float diffuse = max(dot(normalize(vNormal), normalize(-uLightDirection)), 0.0); color.rgb *= max(diffuse, 0.18) * uLightColor;\n"
+            ? "vec3 normal = length(vNormal) > 0.0001 ? normalize(vNormal) : vec3(0.0, 0.0, 1.0); float diffuse = max(dot(normal, normalize(-uLightDirection)), 0.0); color.rgb *= max(diffuse, 0.18) * uLightColor;\n"
             : string.Empty;
         var texture = kind == ShaderProgramKind.UnlitTextured
             ? "color *= texture(uBaseTexture, vUv);\n"
@@ -377,7 +394,7 @@ public sealed class SilkRenderDevice : IRenderDevice
             out vec4 fragColor;
             void main() {
                 vec4 color = uBaseColor;
-                if (uUseTexture) { color *= texture(uBaseTexture, vUv); }
+                {{texture}}
                 {{lighting}}
                 fragColor = color;
             }
@@ -406,13 +423,26 @@ public sealed class SilkRenderDevice : IRenderDevice
             if (IsDisposed)
                 return;
 
-            ((SilkRenderDevice)Owner).EnsureContextCurrent();
+            ((SilkRenderDevice)Owner).Context.EnsureCurrent();
             IsDisposed = true;
-            OnDispose();
+            try
+            {
+                OnDispose();
+            }
+            finally
+            {
+                ((SilkRenderDevice)Owner).Unregister(this);
+            }
         }
 
         protected virtual void OnDispose()
         {
+        }
+
+        internal void Abandon()
+        {
+            IsDisposed = true;
+            ((SilkRenderDevice)Owner).Unregister(this);
         }
     }
 

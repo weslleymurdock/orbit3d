@@ -13,14 +13,14 @@ public sealed class SilkRenderer3D : IRenderer3D
 {
     private readonly IRenderDevice _device;
     private readonly Dictionary<int, ITextureResource> _boundTextures = [];
-    private Light3D[] _lights = [];
+    private Vector3 _lightDirection = new(-0.3f, -1f, -1f);
+    private Vector3 _lightColor = Vector3.One;
     private Material3D? _material;
     private IRenderPipeline? _currentPipeline;
     private Matrix4x4 _view = Matrix4x4.Identity;
     private Matrix4x4 _projection = Matrix4x4.Identity;
     private Matrix4x4 _world = Matrix4x4.Identity;
     private Viewport _viewport;
-    private Vector4 _clearColor = Vector4.Zero;
     private IRenderTarget? _activeTarget;
     private bool _frameActive;
 
@@ -46,6 +46,7 @@ public sealed class SilkRenderer3D : IRenderer3D
     /// <inheritdoc />
     public void Resize(int width, int height)
     {
+        EnsureActive();
         if (width < 0 || height < 0)
             throw new ArgumentOutOfRangeException(nameof(width), "Viewport dimensions must be non-negative.");
 
@@ -55,6 +56,7 @@ public sealed class SilkRenderer3D : IRenderer3D
     /// <inheritdoc />
     public void SetViewport(Viewport viewport)
     {
+        EnsureActive();
         _viewport = viewport;
         var device = GetSilkDevice();
         device.EnsureContextCurrent();
@@ -68,7 +70,6 @@ public sealed class SilkRenderer3D : IRenderer3D
         EnsureActive();
         if (_frameActive)
             throw new InvalidOperationException("A frame is already active.");
-        _clearColor = clearColor;
         _activeTarget = renderTarget;
         if (renderTarget is not null)
             ValidateOwned(renderTarget);
@@ -109,6 +110,7 @@ public sealed class SilkRenderer3D : IRenderer3D
     /// <inheritdoc />
     public void SetCamera(Matrix4x4 view, Matrix4x4 projection)
     {
+        EnsureActive();
         _view = view;
         _projection = projection;
     }
@@ -116,6 +118,7 @@ public sealed class SilkRenderer3D : IRenderer3D
     /// <inheritdoc />
     public void SetWorldMatrix(Matrix4x4 world)
     {
+        EnsureActive();
         _world = world;
     }
 
@@ -152,7 +155,20 @@ public sealed class SilkRenderer3D : IRenderer3D
     public void SetLights(ReadOnlySpan<Light3D> lights)
     {
         EnsureActive();
-        _lights = lights.ToArray();
+        foreach (var light in lights)
+        {
+            if (light.Type != LightType.Directional)
+                continue;
+
+            _lightDirection = light.Direction;
+            if (_lightDirection.LengthSquared() > 0f)
+                _lightDirection = Vector3.Normalize(_lightDirection);
+            _lightColor = light.Color * light.Intensity;
+            return;
+        }
+
+        _lightDirection = new Vector3(-0.3f, -1f, -1f);
+        _lightColor = Vector3.One;
     }
 
     /// <inheritdoc />
@@ -188,6 +204,8 @@ public sealed class SilkRenderer3D : IRenderer3D
         var vertices = (SilkRenderDevice.SilkVertexBuffer)vertexBuffer;
         var indices = (SilkRenderDevice.SilkIndexBuffer)indexBuffer;
         var pipeline = (SilkRenderDevice.SilkRenderPipeline)_currentPipeline;
+        ValidateOwned(pipeline);
+        ValidateOwned(pipeline.Description.ShaderProgram);
         var shader = (SilkRenderDevice.SilkShaderProgram)pipeline.Description.ShaderProgram;
 
         ApplyPipelineState(gl, pipeline.Description);
@@ -201,15 +219,13 @@ public sealed class SilkRenderer3D : IRenderer3D
             materialColor.W *= _material.Opacity;
         SetVector4(gl, shader.Handle, "uBaseColor", materialColor);
 
-        var light = _lights.FirstOrDefault(candidate => candidate.Type == LightType.Directional);
-        var direction = light?.Direction ?? new Vector3(-0.3f, -1f, -1f);
-        if (direction.LengthSquared() > 0f)
-            direction = Vector3.Normalize(direction);
-        var lightColor = light?.Color * (light?.Intensity ?? 1f) ?? Vector3.One;
-        SetVector3(gl, shader.Handle, "uLightDirection", direction);
-        SetVector3(gl, shader.Handle, "uLightColor", lightColor);
+        SetVector3(gl, shader.Handle, "uLightDirection", _lightDirection);
+        SetVector3(gl, shader.Handle, "uLightColor", _lightColor);
 
-        var texture = _boundTextures.GetValueOrDefault(0) as SilkRenderDevice.SilkTextureResource;
+        var boundTexture = _boundTextures.GetValueOrDefault(0);
+        if (boundTexture is not null)
+            ValidateOwned(boundTexture);
+        var texture = boundTexture as SilkRenderDevice.SilkTextureResource;
         var textureLocation = gl.GetUniformLocation(shader.Handle, "uBaseTexture");
         if (textureLocation >= 0)
         {
@@ -243,7 +259,6 @@ public sealed class SilkRenderer3D : IRenderer3D
         IsDisposed = true;
         _currentPipeline = null;
         _boundTextures.Clear();
-        _lights = [];
         _material = null;
         _activeTarget = null;
     }

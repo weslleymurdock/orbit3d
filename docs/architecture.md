@@ -20,7 +20,7 @@ The scene/runtime must not know which graphics API is active.
 The concrete backend lives in a dedicated project: `Orbit3D.Graphics.Silk`. It depends on `Orbit3D.Engine` and on the stable `Silk.NET` package line, but the runtime-facing engine contracts stay free of `Silk.NET.*` types. The surface/view abstractions are intentionally lightweight so they can be exercised in unit tests without a live MAUI window host.
 
 ## Stage 05 status
-`Orbit3D.Graphics.Silk` now issues OpenGL commands for resource upload, shader creation, frame clear, pipeline state, uniforms and indexed draws when given a current platform-owned `SilkGraphicsContext`. The native context provider and a MAUI control/handler that owns and presents that context are not implemented yet. `GameSceneView3D.GraphicsSurface` remains metadata, not a native rendering surface; do not claim end-to-end MAUI GPU rendering support.
+`Orbit3D.Graphics.Silk` issues OpenGL commands for resource upload, shader creation, frame clear, pipeline state, uniforms and indexed draws using a current platform-owned `SilkGraphicsContext`. `SilkGraphicsSurface` has an Android `GLSurfaceView` handler that owns an OpenGL ES 3 context and uses the platform's automatic frame presentation. The Android triangle sample under `games/3D/SilkTriangleSample` packages successfully. Runtime visual validation remains pending because no MAUI startup project is selected in the current VS Code session. Other MAUI targets still have no native handler. `GameSceneView3D.GraphicsSurface` remains backend-neutral metadata; do not claim end-to-end support until rendered pixels are verified.
 
 ## Dependency direction
 Game code -> Orbit.Engine (2D) / Orbit3D.Engine (3D).

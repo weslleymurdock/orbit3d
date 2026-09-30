@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Orbit.Engine/Orbit.Engine.csproj" />
+  <Project Path="Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj" />
+  <Project Path="Orbit3D.Engine/Orbit3D.Engine.csproj" />
+  <Project Path="Orbit3D.Graphics.Silk/Orbit3D.Graphics.Silk.csproj" />
+</Solution>

@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="../../engine/Orbit.Engine/Orbit.Engine.csproj" />
+  <Project Path="../../engine/Orbit3D.Engine/Orbit3D.Engine.csproj" />
+  <Project Path="../../engine/Orbit3D.Graphics.Silk/Orbit3D.Graphics.Silk.csproj" />
+  <Project Path="SilkTriangleSample/SilkTriangleSample.csproj" />
+</Solution>

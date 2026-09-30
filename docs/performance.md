@@ -18,7 +18,7 @@ The concrete backend keeps the lifetime model explicit:
 This avoids the common Stage 04 bug where a backend leaks or recreates GPU resources during normal render loops.
 
 ## Stage 05 status
-The Silk path uploads buffers/textures and compiles programs at resource creation, then reuses their handles in `DrawIndexed`. Uniform lookup and render-state application currently happen per draw and can be cached after profiling. Device/context recreation and re-upload from retained CPU asset data are not integrated yet; do not treat context loss as recoverable until that lifecycle is implemented.
+The Silk path uploads buffers/textures and compiles programs at resource creation, then reuses their handles in `DrawIndexed`. `SilkMeshBuffers.Create` interleaves available position/normal/UV/tangent attributes, validates indices once, and uploads the mesh once. Uniform lookup and render-state application currently happen per draw and can be cached after profiling. On context loss, old handles are abandoned instead of deleted through a different context; applications must recreate buffers/programs from CPU-side assets. Automatic cache/re-upload is not integrated. `Texture2D` currently lacks dimensions and pixel format, so its raw `Data` cannot yet be uploaded from a material reference without adding that asset metadata.
 
 ## Scene performance
 Start with hierarchical transforms, frustum culling, a simple render queue and stable resource bindings. Add batching or instancing only when measurements justify it.

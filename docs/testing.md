@@ -7,13 +7,16 @@ Test backend-independent behavior without a physical GPU: transforms, parent/chi
 The repository now includes targeted backend coverage for the Silk abstraction layer and the 3D host surface. The tests validate resource ownership, viewport changes, renderer lifecycle and the lightweight 3D view surface contract without depending on a live Windows UI automation host.
 
 ## Current validation status
-- Build validated: Windows net10.0-windows10.0.19041.0 path
+- Build: all `Orbit3D.Graphics.Silk` target frameworks passed (`net10.0`, Android, iOS, Mac Catalyst and Windows)
 - Unit tests: `Orbit3D.Engine.Tests` Windows target, 41 passed
-- Runtime/GPU validated: not performed; no Silk-backed MAUI native surface or visual sample is present
-- Platform support: no OpenGL/OpenGLES target is claimed as runtime-validated
+- Android sample packaging: succeeds with six warnings about duplicate Assimp native libraries and Android 16 16 KB page-size requirements
+- Runtime/GPU validated: not performed; no visible triangle/cube was verified
+- Device/emulator launch: Pixel 7 API 36 is available, but MAUI debug launch is blocked because no startup project is selected in VS Code
+- Workload repair: `dotnet workload repair` failed because the cached source for `Microsoft.Android.Sdk.Windows.Msi.x64` was unavailable (`0x0000064c`); `dotnet workload install maui-android --skip-manifest-update` installed the required workload, with an old iOS preview manifest cleanup warning
+- Platform support: no OpenGL/OpenGLES target is claimed as runtime-validated; iOS, Mac Catalyst and Windows currently have no Silk surface handler
 
 ## Stage 05 status
-The Windows backend project compiles with C# unsafe blocks disabled, and the test suite validates backend-neutral behavior plus rejection of a non-current graphics context. These checks do not prove shader execution or visible pixels. Triangle, cube, resize/present, context loss and physical-device validation remain outstanding.
+The backend uses managed spans and C# unsafe blocks are disabled. Windows and Android target builds pass, the Android sample packages, and the Windows backend-independent test suite passes 41/41. These checks do not prove shader execution or visible pixels. Runtime launch could not be attempted because no MAUI startup project was selected in VS Code. Cube rendering, automatic context resource restoration and physical-device validation remain outstanding.
 
 ## Integration tests
 Where practical, validate Assimp imports, hierarchy conversion, texture resolution and GPU resource creation. Ordinary unit tests must not require a platform graphics device.

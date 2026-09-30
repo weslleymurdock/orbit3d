@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="../../engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj" />
+  <Project Path="../../engine/Orbit.Engine/Orbit.Engine.csproj" />
+  <Project Path="../../engine/Orbit3D.Engine/Orbit3D.Engine.csproj" />
+  <Project Path="Orbit/Orbit.csproj" />
+</Solution>

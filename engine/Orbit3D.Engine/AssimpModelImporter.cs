@@ -28,9 +28,11 @@ public sealed class AssimpModelImporter : IModelImporter
 
         var scene = global::Assimp.Maui.Assimp.ImportFile(filePath, DefaultFlags);
         if (scene is null)
+        {
+            var msg = global::Assimp.Maui.Assimp.GetErrorString();
             throw new InvalidOperationException(
-                $"Assimp failed to import '{filePath}': {global::Assimp.Maui.Assimp.GetErrorString()}");
-
+                $"Assimp failed to import '{filePath}': {msg}");
+        }
         try
         {
             return ConvertScene(scene);

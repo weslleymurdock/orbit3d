@@ -21,6 +21,7 @@
 
 	<PropertyGroup>
 		<Authors>Weslley Luiz</Authors>
+        <Version>1.0.0-rc1</Version>
         <Company>Remote Code Hub</Company>
 		<Description>The Orbit engine is a lightweight 2D and 3D game engine built on top of .NET MAUI Graphics.</Description>
 		<PackageTags>.NET MAUI, Game Engine, 3D Game</PackageTags>

@@ -337,8 +337,14 @@ public sealed class SilkRenderer3D : IRenderer3D
         var location = gl.GetUniformLocation(program, name);
         if (location < 0)
             return;
-        var values = MemoryMarshal.Cast<Matrix4x4, float>(MemoryMarshal.CreateReadOnlySpan(ref matrix, 1));
-        gl.UniformMatrix4(location, false, values);
+
+        var transposed = Matrix4x4.Transpose(matrix);
+        Span<float> values = stackalloc float[16];
+        values[0] = transposed.M11; values[1] = transposed.M12; values[2] = transposed.M13; values[3] = transposed.M14;
+        values[4] = transposed.M21; values[5] = transposed.M22; values[6] = transposed.M23; values[7] = transposed.M24;
+        values[8] = transposed.M31; values[9] = transposed.M32; values[10] = transposed.M33; values[11] = transposed.M34;
+        values[12] = transposed.M41; values[13] = transposed.M42; values[14] = transposed.M43; values[15] = transposed.M44;
+        gl.UniformMatrix4(location, 1, false, values);
     }
 
     private static void SetVector3(GL gl, uint program, string name, Vector3 value)

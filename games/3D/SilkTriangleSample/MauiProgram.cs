@@ -1,4 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
+#if MAUI_DEVFLOW
+using Microsoft.Maui.DevFlow.Agent;
+#endif
 #if ANDROID
 using Orbit3D.Graphics.Silk;
 #endif
@@ -14,6 +17,10 @@ public static class MauiProgram
 			.UseMauiApp<App>()
 #if ANDROID
 			.UseSilkGraphics()
+			.ConfigureMauiHandlers(handlers => handlers.AddHandler<SilkGraphicsSurface, SilkGraphicsSurfaceHandler>())
+#endif
+#if MAUI_DEVFLOW
+			.AddMauiDevFlowAgent()
 #endif
 			.ConfigureFonts(fonts =>
 			{

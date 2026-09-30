@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices;
 using Android.Content;
 using Android.Opengl;
+using Android.Util;
 using Android.Views;
 using Microsoft.Maui.Handlers;
 using Javax.Microedition.Khronos.Egl;
@@ -9,7 +10,7 @@ using Javax.Microedition.Khronos.Opengles;
 
 namespace Orbit3D.Graphics.Silk;
 
-internal sealed class SilkGraphicsSurfaceHandler : ViewHandler<SilkGraphicsSurface, SilkGLSurfaceView>
+public sealed class SilkGraphicsSurfaceHandler : ViewHandler<SilkGraphicsSurface, SilkGLSurfaceView>
 {
     public static readonly IPropertyMapper<SilkGraphicsSurface, SilkGraphicsSurfaceHandler> Mapper =
         new PropertyMapper<SilkGraphicsSurface, SilkGraphicsSurfaceHandler>(ViewHandler.ViewMapper);
@@ -23,6 +24,7 @@ internal sealed class SilkGraphicsSurfaceHandler : ViewHandler<SilkGraphicsSurfa
     protected override void ConnectHandler(SilkGLSurfaceView platformView)
     {
         base.ConnectHandler(platformView);
+        platformView.StartRendering();
         platformView.OnResume();
     }
 
@@ -35,7 +37,7 @@ internal sealed class SilkGraphicsSurfaceHandler : ViewHandler<SilkGraphicsSurfa
     }
 }
 
-internal sealed class SilkGLSurfaceView : GLSurfaceView
+public sealed class SilkGLSurfaceView : GLSurfaceView
 {
     private readonly SurfaceRenderer _renderer;
 
@@ -47,6 +49,18 @@ internal sealed class SilkGLSurfaceView : GLSurfaceView
         PreserveEGLContextOnPause = false;
         SetRenderer(_renderer);
         Track(this);
+    }
+
+    public void StartRendering()
+    {
+        if (IsAttachedToWindow)
+            RenderMode = Rendermode.Continuously;
+    }
+
+    protected override void OnAttachedToWindow()
+    {
+        base.OnAttachedToWindow();
+        RenderMode = Rendermode.Continuously;
     }
 
     public void ReleaseSurface() => _renderer.Release();
@@ -95,6 +109,7 @@ internal sealed class SilkGLSurfaceView : GLSurfaceView
 
         public void OnSurfaceCreated(IGL10? gl, Javax.Microedition.Khronos.Egl.EGLConfig? config)
         {
+            Log.Info("Orbit3D", "[Silk] OnSurfaceCreated");
             if (_context is not null)
                 surface.RaiseContextLost(_context);
 
@@ -110,10 +125,17 @@ internal sealed class SilkGLSurfaceView : GLSurfaceView
             surface.RaiseContextCreated(_context);
         }
 
-        public void OnSurfaceChanged(IGL10? gl, int width, int height) =>
+        public void OnSurfaceChanged(IGL10? gl, int width, int height)
+        {
+            Log.Info("Orbit3D", $"[Silk] OnSurfaceChanged {width}x{height}");
             surface.RaiseSurfaceResized(width, height);
+        }
 
-        public void OnDrawFrame(IGL10? gl) => surface.RaiseRenderFrame();
+        public void OnDrawFrame(IGL10? gl)
+        {
+            Log.Info("Orbit3D", "[Silk] OnDrawFrame");
+            surface.RaiseRenderFrame();
+        }
 
         public void Release()
         {

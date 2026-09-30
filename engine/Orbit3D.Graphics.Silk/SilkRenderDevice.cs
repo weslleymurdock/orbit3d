@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Orbit3D.Engine;
 using Orbit3D.Engine.Graphics;
 using Silk.NET.OpenGL;
@@ -10,6 +11,7 @@ namespace Orbit3D.Graphics.Silk;
 public sealed class SilkRenderDevice : IRenderDevice
 {
     private readonly List<IGraphicsResource> resources = [];
+    private readonly DrawElementsFunction drawElements;
 
     /// <summary>Creates a device bound to a current native Silk graphics context.</summary>
     public SilkRenderDevice(SilkGraphicsContext context)
@@ -17,9 +19,30 @@ public sealed class SilkRenderDevice : IRenderDevice
         ArgumentNullException.ThrowIfNull(context);
         context.EnsureCurrent();
         Context = context;
+        var drawElementsAddress = context.GetProcAddress("glDrawElements");
+        if (drawElementsAddress == 0)
+            throw new InvalidOperationException("The graphics context does not expose glDrawElements.");
+        drawElements = Marshal.GetDelegateForFunctionPointer<DrawElementsFunction>(drawElementsAddress);
     }
 
     internal SilkGraphicsContext Context { get; }
+
+    internal void DrawElements(PrimitiveType topology, uint indexCount, DrawElementsType indexType, nint indexOffset)
+    {
+        EnsureActive();
+        Context.EnsureCurrent();
+        drawElements(topology, indexCount, indexType, indexOffset);
+    }
+
+    internal void AbandonResources()
+    {
+        if (IsDisposed)
+            return;
+
+        IsDisposed = true;
+        foreach (var resource in resources.ToArray())
+            ((SilkResource)resource).Abandon();
+    }
 
     /// <inheritdoc />
     public bool IsDisposed { get; private set; }
@@ -245,6 +268,9 @@ public sealed class SilkRenderDevice : IRenderDevice
         if (expected != actual)
             throw new ArgumentException("Data length does not match the resource description.");
     }
+
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate void DrawElementsFunction(PrimitiveType topology, uint indexCount, DrawElementsType indexType, nint indexOffset);
 
     private void EnsureActive()
     {

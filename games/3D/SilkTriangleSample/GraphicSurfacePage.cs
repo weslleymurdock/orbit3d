@@ -23,6 +23,7 @@ public sealed class GraphicSurfacePage : ContentPage
         {
             Text = "Importando poly.obj...",
             Margin = new Thickness(12),
+            FontSize = 14,
             HorizontalOptions = LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Start,
             TextColor = Colors.White,
@@ -33,11 +34,13 @@ public sealed class GraphicSurfacePage : ContentPage
         layout.Children.Add(surface);
         layout.Children.Add(statusLabel);
         Content = layout;
+        Console.WriteLine($"[SilkSurface] created handler={surface.Handler?.GetType().FullName ?? "<null>"}");
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        diagnostic.StatusChanged += OnDiagnosticStatusChanged;
         if (importStarted)
             return;
         importStarted = true;
@@ -65,5 +68,19 @@ public sealed class GraphicSurfacePage : ContentPage
         {
             statusLabel.Text = $"Falha ao importar poly.obj: {exception.Message}";
         }
+    }
+
+    protected override void OnDisappearing()
+    {
+        diagnostic.StatusChanged -= OnDiagnosticStatusChanged;
+        base.OnDisappearing();
+    }
+
+    private void OnDiagnosticStatusChanged(string message)
+    {
+        var displayText = message.StartsWith("First frame submitted", StringComparison.Ordinal)
+            ? "3D mesh rendered"
+            : message;
+        MainThread.BeginInvokeOnMainThread(() => statusLabel.Text = displayText);
     }
 }

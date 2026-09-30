@@ -8,6 +8,7 @@ namespace Orbit3D.Graphics.Silk;
 /// </summary>
 public sealed class SilkGraphicsContext
 {
+    private readonly Func<string, nint> getProcAddress;
     private readonly Func<bool> isCurrent;
     private readonly Action? present;
     private readonly bool presentAfterRenderCallback;
@@ -36,6 +37,7 @@ public sealed class SilkGraphicsContext
         if (!isCurrent())
             throw new InvalidOperationException("The native OpenGL context must be current before creating Silk resources.");
 
+        this.getProcAddress = getProcAddress;
         this.isCurrent = isCurrent;
         this.present = present;
         this.presentAfterRenderCallback = presentAfterRenderCallback;
@@ -53,6 +55,8 @@ public sealed class SilkGraphicsContext
     public bool IsCurrent => Environment.CurrentManagedThreadId == threadId && isCurrent();
 
     internal bool IsApiDisposed => apiDisposed;
+
+    internal nint GetProcAddress(string name) => getProcAddress(name);
 
     internal void EnsureCurrent()
     {

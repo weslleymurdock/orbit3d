@@ -17,7 +17,7 @@ public static class MauiProgram
 			.UseMauiApp<App>()
 #if ANDROID
 			.UseSilkGraphics()
-			.ConfigureMauiHandlers(handlers => handlers.AddHandler<SilkGraphicsSurface, SilkGraphicsSurfaceHandler>())
+			.ConfigureMauiHandlers(handlers => handlers.AddHandler(typeof(SilkGraphicsSurface), typeof(SilkGraphicsSurfaceHandler)))
 #endif
 #if MAUI_DEVFLOW
 			.AddMauiDevFlowAgent()

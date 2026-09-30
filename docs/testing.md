@@ -7,16 +7,14 @@ Test backend-independent behavior without a physical GPU: transforms, parent/chi
 The repository now includes targeted backend coverage for the Silk abstraction layer and the 3D host surface. The tests validate resource ownership, viewport changes, renderer lifecycle and the lightweight 3D view surface contract without depending on a live Windows UI automation host.
 
 ## Current validation status
-- Build: all `Orbit3D.Graphics.Silk` target frameworks passed (`net10.0`, Android, iOS, Mac Catalyst and Windows)
-- Unit tests: `Orbit3D.Engine.Tests` Windows target, 42 passed
-- Android sample packaging: succeeds; APK contains `assets/poly.obj`, with three duplicate Assimp native library warnings
-- Runtime/GPU validated: not performed; the imported tetrahedron has not been visually verified
-- Device/emulator launch: Pixel 7 API 36 is available, but MAUI debug launch is blocked because no startup project is selected in VS Code
-- Workload repair: `dotnet workload repair` failed because the cached source for `Microsoft.Android.Sdk.Windows.Msi.x64` was unavailable (`0x0000064c`); `dotnet workload install maui-android --skip-manifest-update` installed the required workload, with an old iOS preview manifest cleanup warning
-- Platform support: no OpenGL/OpenGLES target is claimed as runtime-validated; iOS, Mac Catalyst and Windows currently have no Silk surface handler
+- Android backend and sample build pass for `net10.0-android`.
+- Unit tests: `Orbit3D.Engine.Tests` Windows target, 42 passed.
+- Physical Android runtime/GPU: validated on M1908C3JGG with GLES; the imported tetrahedron uploads as 12 vertices/12 indices, submits one indexed draw, reports `GL=NoError`, and is visible in the captured screen.
+- Android deployment used the .NET Android `Install` target so Debug fast-deployed assemblies matched the APK.
+- Platform support: only Android has a native Silk surface handler; iOS, Mac Catalyst and Windows are not runtime-validated.
 
 ## Stage 05 status
-The backend uses managed spans and C# unsafe blocks are disabled. Windows and Android target builds pass, the Android sample packages with its OBJ asset, and the Windows backend-independent test suite passes 42/42. Android Assimp libraries are explicitly loaded during activity `OnCreate`; the Silk context checks the native EGL handle in its callback thread. These checks do not prove shader execution or visible pixels. Runtime launch could not be attempted because no MAUI startup project was selected in VS Code. Visual verification of the imported tetrahedron, automatic context resource restoration and physical-device validation remain outstanding.
+The Android GLES path is visually validated on a physical device. Validation exposed two rendering defects: `System.Numerics` matrices were uploaded with the wrong memory ordering, and the Silk.NET generic `DrawElements(in nint)` overload passed the address of the managed offset variable instead of the element-buffer byte offset. The backend now uploads row-vector matrices in the layout expected by GLSL and invokes `glDrawElements` with the native offset value through a cached delegate. First-frame diagnostics report upload/draw counts, clip-space bounds and GL errors; the physical run reports one draw, 12 indices and `GL=NoError`. The 42-test Windows suite passes. Context recreation and other MAUI platform backends remain unvalidated.
 
 ## Integration tests
 Where practical, validate Assimp imports, hierarchy conversion, texture resolution and GPU resource creation. Ordinary unit tests must not require a platform graphics device.

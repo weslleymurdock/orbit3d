@@ -19,17 +19,21 @@ public sealed class SilkGraphicsSurfaceHandler : ViewHandler<SilkGraphicsSurface
     {
     }
 
-    protected override SilkGLSurfaceView CreatePlatformView() => new(Context!, VirtualView);
+    protected override SilkGLSurfaceView CreatePlatformView()
+    {
+        Log.Info("Orbit3D", "[Silk] CreatePlatformView");
+        return new(Context!, VirtualView);
+    }
 
     protected override void ConnectHandler(SilkGLSurfaceView platformView)
     {
+        Log.Info("Orbit3D", "[Silk] ConnectHandler");
         base.ConnectHandler(platformView);
-        platformView.StartRendering();
-        platformView.OnResume();
     }
 
     protected override void DisconnectHandler(SilkGLSurfaceView platformView)
     {
+        Log.Info("Orbit3D", "[Silk] DisconnectHandler");
         platformView.OnPause();
         platformView.ReleaseSurface();
         platformView.UntrackSurface();
@@ -43,24 +47,14 @@ public sealed class SilkGLSurfaceView : GLSurfaceView
 
     public SilkGLSurfaceView(Context context, SilkGraphicsSurface surface) : base(context)
     {
-        _renderer = new SurfaceRenderer(surface);
+        Log.Info("Orbit3D", "[Silk] GLSurfaceView ctor");
+        _renderer = new SurfaceRenderer(this, surface);
         SetEGLContextClientVersion(3);
         SetEGLConfigChooser(8, 8, 8, 8, 16, 0);
         PreserveEGLContextOnPause = false;
         SetRenderer(_renderer);
-        Track(this);
-    }
-
-    public void StartRendering()
-    {
-        if (IsAttachedToWindow)
-            RenderMode = Rendermode.Continuously;
-    }
-
-    protected override void OnAttachedToWindow()
-    {
-        base.OnAttachedToWindow();
         RenderMode = Rendermode.Continuously;
+        Track(this);
     }
 
     public void ReleaseSurface() => _renderer.Release();
@@ -103,9 +97,11 @@ public sealed class SilkGLSurfaceView : GLSurfaceView
             action(view);
     }
 
-    private sealed class SurfaceRenderer(SilkGraphicsSurface surface) : Java.Lang.Object, GLSurfaceView.IRenderer
+    private sealed class SurfaceRenderer(SilkGLSurfaceView view, SilkGraphicsSurface surface) : Java.Lang.Object, GLSurfaceView.IRenderer
     {
         private SilkGraphicsContext? _context;
+        private int surfaceWidth;
+        private int surfaceHeight;
 
         public void OnSurfaceCreated(IGL10? gl, Javax.Microedition.Khronos.Egl.EGLConfig? config)
         {
@@ -113,27 +109,34 @@ public sealed class SilkGLSurfaceView : GLSurfaceView
             if (_context is not null)
                 surface.RaiseContextLost(_context);
 
-            var contextHandle = GetCurrentEglContextHandle();
-            if (contextHandle == 0)
-                throw new InvalidOperationException("GLSurfaceView did not make an EGL context current.");
-            _context = new SilkGraphicsContext(
-                GetProcAddress,
-                () => GetCurrentEglContextHandle() == contextHandle,
-                present: null,
-                isOpenGles: true,
-                presentAfterRenderCallback: true);
+            _context = CreateContext();
             surface.RaiseContextCreated(_context);
         }
 
         public void OnSurfaceChanged(IGL10? gl, int width, int height)
         {
+            surfaceWidth = width;
+            surfaceHeight = height;
             Log.Info("Orbit3D", $"[Silk] OnSurfaceChanged {width}x{height}");
             surface.RaiseSurfaceResized(width, height);
         }
 
         public void OnDrawFrame(IGL10? gl)
         {
-            Log.Info("Orbit3D", "[Silk] OnDrawFrame");
+            if (_context is null)
+            {
+                Log.Error("Orbit3D", "[Silk] Render callback arrived without a current EGL context");
+                return;
+            }
+
+            if (view.Width > 0 && view.Height > 0 &&
+                (view.Width != surfaceWidth || view.Height != surfaceHeight))
+            {
+                surfaceWidth = view.Width;
+                surfaceHeight = view.Height;
+                surface.RaiseSurfaceResized(view.Width, view.Height);
+            }
+
             surface.RaiseRenderFrame();
         }
 
@@ -145,6 +148,20 @@ public sealed class SilkGLSurfaceView : GLSurfaceView
         }
 
         private static nint GetProcAddress(string name) => EglGetProcAddress(name);
+
+        private static SilkGraphicsContext CreateContext()
+        {
+            var contextHandle = GetCurrentEglContextHandle();
+            if (contextHandle == 0)
+                throw new InvalidOperationException("GLSurfaceView did not make an EGL context current.");
+
+            return new SilkGraphicsContext(
+                GetProcAddress,
+                () => GetCurrentEglContextHandle() == contextHandle,
+                present: null,
+                isOpenGles: true,
+                presentAfterRenderCallback: true);
+        }
 
         [DllImport("EGL", EntryPoint = "eglGetCurrentContext", CallingConvention = CallingConvention.Cdecl)]
         private static extern nint GetCurrentEglContextHandle();

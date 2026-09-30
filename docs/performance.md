@@ -17,6 +17,9 @@ The concrete backend keeps the lifetime model explicit:
 - the renderer validates ownership and disposal before draw calls.
 This avoids the common Stage 04 bug where a backend leaks or recreates GPU resources during normal render loops.
 
+## Stage 05 status
+The Silk path uploads buffers/textures and compiles programs at resource creation, then reuses their handles in `DrawIndexed`. Uniform lookup and render-state application currently happen per draw and can be cached after profiling. Device/context recreation and re-upload from retained CPU asset data are not integrated yet; do not treat context loss as recoverable until that lifecycle is implemented.
+
 ## Scene performance
 Start with hierarchical transforms, frustum culling, a simple render queue and stable resource bindings. Add batching or instancing only when measurements justify it.
 

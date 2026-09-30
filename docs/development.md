@@ -13,6 +13,9 @@ Implement 3D in independent stages. Do not implement future-stage functionality 
 
 For each stage: inspect current code, read relevant guidance, make the smallest coherent change, build, test and document limitations.
 
+## Stage 05 status
+The Silk backend contains real OpenGL resource and indexed-draw commands but still requires a platform-owned current context. Native MAUI surface creation/presentation and a runnable diagnostic scene are pending. Do not report Stage 05 complete or a platform supported until a triangle is visibly rendered on that platform and its lifecycle is validated.
+
 ## Public API
 Public engine APIs require XML documentation. Prefer stable Orbit concepts over third-party implementation details.
 

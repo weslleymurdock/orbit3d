@@ -8,8 +8,12 @@ The repository now includes targeted backend coverage for the Silk abstraction l
 
 ## Current validation status
 - Build validated: Windows net10.0-windows10.0.19041.0 path
-- Runtime/GPU validated: not performed on mobile or desktop GPU hardware in this environment
-- Unsupported claims are explicitly avoided; mobile GPU support is compiled only, not runtime-validated here.
+- Unit tests: `Orbit3D.Engine.Tests` Windows target, 41 passed
+- Runtime/GPU validated: not performed; no Silk-backed MAUI native surface or visual sample is present
+- Platform support: no OpenGL/OpenGLES target is claimed as runtime-validated
+
+## Stage 05 status
+The Windows backend project compiles with C# unsafe blocks disabled, and the test suite validates backend-neutral behavior plus rejection of a non-current graphics context. These checks do not prove shader execution or visible pixels. Triangle, cube, resize/present, context loss and physical-device validation remain outstanding.
 
 ## Integration tests
 Where practical, validate Assimp imports, hierarchy conversion, texture resolution and GPU resource creation. Ordinary unit tests must not require a platform graphics device.

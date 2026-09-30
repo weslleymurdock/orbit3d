@@ -19,6 +19,9 @@ The scene/runtime must not know which graphics API is active.
 ## Stage 04 backend split
 The concrete backend lives in a dedicated project: `Orbit3D.Graphics.Silk`. It depends on `Orbit3D.Engine` and on the stable `Silk.NET` package line, but the runtime-facing engine contracts stay free of `Silk.NET.*` types. The surface/view abstractions are intentionally lightweight so they can be exercised in unit tests without a live MAUI window host.
 
+## Stage 05 status
+`Orbit3D.Graphics.Silk` now issues OpenGL commands for resource upload, shader creation, frame clear, pipeline state, uniforms and indexed draws when given a current platform-owned `SilkGraphicsContext`. The native context provider and a MAUI control/handler that owns and presents that context are not implemented yet. `GameSceneView3D.GraphicsSurface` remains metadata, not a native rendering surface; do not claim end-to-end MAUI GPU rendering support.
+
 ## Dependency direction
 Game code -> Orbit.Engine (2D) / Orbit3D.Engine (3D).
 Orbit3D.Engine -> Orbit.Engine (Orbit3D.Engine owns the 3D functionality and Orbit.Engine must not become coupled to 3D).

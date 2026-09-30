@@ -13,9 +13,10 @@ public static class SilkGraphicsFactory
     public const string SilkVersion = "2.23.0";
 
     /// <summary>
-    /// Creates a new render device backed by the selected Silk.NET graphics backend.
+    /// Creates a render device bound to an already-current native graphics context.
     /// </summary>
-    public static IRenderDevice CreateDevice() => new SilkRenderDevice();
+    /// <param name="context">Current platform-owned OpenGL or OpenGLES context.</param>
+    public static IRenderDevice CreateDevice(SilkGraphicsContext context) => new SilkRenderDevice(context);
 
     /// <summary>
     /// Creates a renderer instance bound to the supplied device.

@@ -39,3 +39,8 @@ Avoid CPU readback.
 
 ## Surface lifecycle
 Handle creation, resize, render, suspension, recreation and disposal. Mobile suspension may invalidate native graphics contexts.
+
+## Stage 05 status
+The Silk backend currently performs real OpenGL operations after a caller supplies an already-current context, including managed-span uploads, shader compile/link, framebuffer creation, clear, depth/culling/blend state, uniforms, indexed drawing and a caller-provided present callback. `SilkGraphicsContext` enforces its creation thread and current-context check. The repository does not yet provide a native MAUI `GraphicsSurface`/handler, swap-chain/context creation, context-loss resource restoration, or a visual triangle/cube sample. Windows compilation is not evidence of GPU runtime support; no platform is claimed as visually validated.
+
+The backend uses managed spans for data transfers and does not enable C# unsafe code. The `nint` value used for `DrawElements` is a byte offset into a bound index buffer, not a managed memory pointer.

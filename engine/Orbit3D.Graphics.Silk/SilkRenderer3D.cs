@@ -12,6 +12,7 @@ namespace Orbit3D.Graphics.Silk;
 public sealed class SilkRenderer3D : IRenderer3D
 {
     private readonly Dictionary<int, ITextureResource> boundTextures = [];
+    private readonly RenderMetricsTracker renderMetricsTracker = new();
     private Vector3 lightDirection = new(-0.3f, -1f, -1f);
     private Vector3 lightColor = Vector3.One;
     private Material3D? material;
@@ -42,6 +43,11 @@ public sealed class SilkRenderer3D : IRenderer3D
     /// <inheritdoc />
     public bool IsDisposed { get; private set; }
 
+    /// <summary>
+    /// Gets the most recently collected frame metrics.
+    /// </summary>
+    public RenderMetrics Metrics => renderMetricsTracker.Current;
+
     /// <inheritdoc />
     public void Resize(int width, int height)
     {
@@ -69,6 +75,8 @@ public sealed class SilkRenderer3D : IRenderer3D
         EnsureActive();
         if (frameActive)
             throw new InvalidOperationException("A frame is already active.");
+
+        renderMetricsTracker.BeginFrame();
         activeTarget = renderTarget;
         if (renderTarget is not null)
             ValidateOwned(renderTarget);
@@ -102,6 +110,7 @@ public sealed class SilkRenderer3D : IRenderer3D
         activeTarget = null;
         frameActive = false;
         device.Context.Api.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        renderMetricsTracker.CompleteFrame();
         if (shouldPresent)
             device.Context.Present();
     }
@@ -145,7 +154,12 @@ public sealed class SilkRenderer3D : IRenderer3D
         if (slot < 0)
             throw new ArgumentOutOfRangeException(nameof(slot));
 
-        ArgumentNullException.ThrowIfNull(texture);
+        if (texture is null)
+        {
+            boundTextures.Remove(slot);
+            return;
+        }
+
         ValidateOwned(texture);
         boundTextures[slot] = texture;
     }
@@ -247,6 +261,7 @@ public sealed class SilkRenderer3D : IRenderer3D
             (uint)indexCount,
             indices.Description.Format == IndexFormat.UInt16 ? DrawElementsType.UnsignedShort : DrawElementsType.UnsignedInt,
             indexOffset);
+        renderMetricsTracker.RecordDraw(indexCount, indexCount / 3);
         gl.BindVertexArray(0);
     }
 

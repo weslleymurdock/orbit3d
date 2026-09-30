@@ -1,3 +1,5 @@
+using Orbit3D.Engine.Graphics;
+
 namespace Orbit3D.Engine;
 
 /// <summary>
@@ -33,6 +35,21 @@ public class Texture2D
     public TextureUsage Usage { get; set; } = TextureUsage.Unknown;
 
     /// <summary>
+    /// Gets or sets the texture width in pixels.
+    /// </summary>
+    public int Width { get; set; }
+
+    /// <summary>
+    /// Gets or sets the texture height in pixels.
+    /// </summary>
+    public int Height { get; set; }
+
+    /// <summary>
+    /// Gets or sets the texture format.
+    /// </summary>
+    public TextureFormat PixelFormat { get; set; } = TextureFormat.Rgba8Unorm;
+
+    /// <summary>
     /// Gets or sets the file path to the texture, if loaded from disk.
     /// </summary>
     public string? FilePath { get; set; }
@@ -41,4 +58,9 @@ public class Texture2D
     /// Gets or sets the raw image data, if embedded or loaded into memory.
     /// </summary>
     public byte[]? Data { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the texture contains valid pixel data ready for GPU upload.
+    /// </summary>
+    public bool HasPixelData => Width > 0 && Height > 0 && Data is not null && Data.Length > 0;
 }

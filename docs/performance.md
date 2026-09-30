@@ -31,3 +31,6 @@ Track frame time, FPS, draw calls, triangles, visible objects and GPU resource c
 
 ## Validation
 Benchmark representative assets and object counts, recording platform/device/configuration. Avoid conclusions from a trivial sample alone.
+
+## Stage 06 runtime notes
+The runtime path keeps CPU asset caches and GPU caches separate. A `GpuResourceCache` is bound to the active `IRenderDevice`, invalidates stale entries when the graphics context changes, and rebuilds buffers/textures lazily from the original `Mesh3D` and `Texture2D` data instead of reusing handles from a lost context. Per-frame metrics are derived from the actual `DrawIndexed` calls that reach the backend so that skipped or invalid queue items do not inflate `DrawCalls` or `RenderedItems`.

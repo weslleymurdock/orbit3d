@@ -59,4 +59,18 @@ public class Camera3DTests
         
         Assert.NotEqual(initialProj, camera.ProjectionMatrix);
     }
+
+    [Fact]
+    public void TransformMotion_UpdatesViewMatrix()
+    {
+        var camera = new Camera3D();
+        var initialView = camera.ViewMatrix;
+
+        camera.Transform.Position = new Vector3(3f, 2f, -5f);
+        camera.Transform.Rotation = Quaternion.CreateFromYawPitchRoll(0.7f, -0.5f, 0f);
+
+        var updatedView = camera.ViewMatrix;
+        Assert.NotEqual(initialView, updatedView);
+        Assert.NotEqual(Matrix4x4.Identity, updatedView);
+    }
 }

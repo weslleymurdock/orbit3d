@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Orbit3D.Engine\Orbit3D.Engine.csproj" />
+    <ProjectReference Include="..\Orbit3D.Graphics.Silk\Orbit3D.Graphics.Silk.csproj" />
   </ItemGroup>
 
   <ItemGroup>

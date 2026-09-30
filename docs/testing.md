@@ -3,6 +3,14 @@
 ## Unit tests
 Test backend-independent behavior without a physical GPU: transforms, parent/child matrices, camera projection, asset conversion, mesh/index conversion, materials/textures, cache identity and lifecycle transitions.
 
+## Stage 04 testing
+The repository now includes targeted backend coverage for the Silk abstraction layer and the 3D host surface. The tests validate resource ownership, viewport changes, renderer lifecycle and the lightweight 3D view surface contract without depending on a live Windows UI automation host.
+
+## Current validation status
+- Build validated: Windows net10.0-windows10.0.19041.0 path
+- Runtime/GPU validated: not performed on mobile or desktop GPU hardware in this environment
+- Unsupported claims are explicitly avoided; mobile GPU support is compiled only, not runtime-validated here.
+
 ## Integration tests
 Where practical, validate Assimp imports, hierarchy conversion, texture resolution and GPU resource creation. Ordinary unit tests must not require a platform graphics device.
 

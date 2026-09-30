@@ -3,6 +3,15 @@
 ## Goal
 The renderer must use GPU acceleration. `ICanvas` is not the primary 3D triangle rasterizer.
 
+## Selected backend
+Stage 04 pins `Silk.NET` version `2.23.0` across the concrete backend packages. This is the newest stable package line resolved by NuGet in this environment and matches the .NET 10/MAUI runtime baseline. The public `Orbit3D.Engine` contracts remain backend-neutral and do not expose Silk types.
+
+## API selection
+The concrete backend is isolated behind the existing abstractions. For the current stage, the implementation targets the smallest practical API set while preserving the abstraction boundary:
+- Windows/desktop: OpenGL via `Silk.NET.OpenGL`
+- Android/iOS/MacCatalyst: OpenGLES via `Silk.NET.OpenGLES`
+- The runtime is not claimed as GPU-validated on mobile targets in this environment; only the Windows build/test path is confirmed here.
+
 ## Abstraction
 The engine should provide backend-neutral concepts for graphics device/context, command/render context, vertex/index buffer, texture, sampler, shader/program, render target, depth buffer, mesh resource and renderer. Names may follow established repository conventions.
 

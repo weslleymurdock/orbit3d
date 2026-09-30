@@ -9,6 +9,14 @@ Do not perform per frame Assimp traversal, native property access for every vert
 ## Resource strategy
 Upload immutable meshes once. Decode/upload textures once. Cache resources by asset/device. If a device is recreated, recreate device-dependent resources from CPU-side data or a reloadable cache.
 
+## Stage 04 implementation notes
+The concrete backend keeps the lifetime model explicit:
+- device owns resources;
+- resources are created once and reused across frames;
+- shader compilation and mesh uploads are not performed per frame;
+- the renderer validates ownership and disposal before draw calls.
+This avoids the common Stage 04 bug where a backend leaks or recreates GPU resources during normal render loops.
+
 ## Scene performance
 Start with hierarchical transforms, frustum culling, a simple render queue and stable resource bindings. Add batching or instancing only when measurements justify it.
 

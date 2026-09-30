@@ -26,10 +26,10 @@ public sealed class AssimpModelImporter : IModelImporter
         if (!System.IO.File.Exists(filePath))
             throw new FileNotFoundException("Asset file not found.", filePath);
 
-        var scene = Assimp.ImportFile(filePath, DefaultFlags);
+        var scene = global::Assimp.Maui.Assimp.ImportFile(filePath, DefaultFlags);
         if (scene is null)
             throw new InvalidOperationException(
-                $"Assimp failed to import '{filePath}': {Assimp.GetErrorString()}");
+                $"Assimp failed to import '{filePath}': {global::Assimp.Maui.Assimp.GetErrorString()}");
 
         try
         {
@@ -139,7 +139,7 @@ public sealed class AssimpModelImporter : IModelImporter
     {
         using var path = new Assimp.Maui.String();
 
-        var result = Assimp.GetMaterialTexture(
+        var result = global::Assimp.Maui.Assimp.GetMaterialTexture(
             material,
             type,
             0,

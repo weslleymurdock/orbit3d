@@ -11,18 +11,18 @@ namespace Orbit3D.Graphics.Silk;
 /// </summary>
 public sealed class SilkRenderer3D : IRenderer3D
 {
-    private readonly IRenderDevice _device;
-    private readonly Dictionary<int, ITextureResource> _boundTextures = [];
-    private Vector3 _lightDirection = new(-0.3f, -1f, -1f);
-    private Vector3 _lightColor = Vector3.One;
-    private Material3D? _material;
-    private IRenderPipeline? _currentPipeline;
-    private Matrix4x4 _view = Matrix4x4.Identity;
-    private Matrix4x4 _projection = Matrix4x4.Identity;
-    private Matrix4x4 _world = Matrix4x4.Identity;
-    private Viewport _viewport;
-    private IRenderTarget? _activeTarget;
-    private bool _frameActive;
+    private readonly IRenderDevice device;
+    private readonly Dictionary<int, ITextureResource> boundTextures = [];
+    private Vector3 lightDirection = new(-0.3f, -1f, -1f);
+    private Vector3 lightColor = Vector3.One;
+    private Material3D? material;
+    private IRenderPipeline? currentPipeline;
+    private Matrix4x4 view = Matrix4x4.Identity;
+    private Matrix4x4 projection = Matrix4x4.Identity;
+    private Matrix4x4 world = Matrix4x4.Identity;
+    private Viewport viewport;
+    private IRenderTarget? activeTarget;
+    private bool frameActive;
 
     /// <summary>
     /// Initializes a renderer using the supplied device.
@@ -30,15 +30,15 @@ public sealed class SilkRenderer3D : IRenderer3D
     public SilkRenderer3D(IRenderDevice device)
     {
         ArgumentNullException.ThrowIfNull(device);
-        _device = device;
-        _viewport = new Viewport(0, 0, 0, 0);
+        this.device = device;
+        viewport = new Viewport(0, 0, 0, 0);
     }
 
     /// <inheritdoc />
-    public IRenderDevice Device => _device;
+    public IRenderDevice Device => device;
 
     /// <inheritdoc />
-    public Viewport Viewport => _viewport;
+    public Viewport Viewport => viewport;
 
     /// <inheritdoc />
     public bool IsDisposed { get; private set; }
@@ -57,7 +57,7 @@ public sealed class SilkRenderer3D : IRenderer3D
     public void SetViewport(Viewport viewport)
     {
         EnsureActive();
-        _viewport = viewport;
+        this.viewport = viewport;
         var device = GetSilkDevice();
         device.EnsureContextCurrent();
         if (viewport.Width > 0 && viewport.Height > 0)
@@ -68,9 +68,9 @@ public sealed class SilkRenderer3D : IRenderer3D
     public void BeginFrame(Vector4 clearColor, IRenderTarget? renderTarget = null)
     {
         EnsureActive();
-        if (_frameActive)
+        if (frameActive)
             throw new InvalidOperationException("A frame is already active.");
-        _activeTarget = renderTarget;
+        activeTarget = renderTarget;
         if (renderTarget is not null)
             ValidateOwned(renderTarget);
 
@@ -80,28 +80,28 @@ public sealed class SilkRenderer3D : IRenderer3D
         var target = renderTarget as SilkRenderDevice.SilkRenderTarget;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, target?.Framebuffer ?? 0);
         var activeViewport = target is null
-            ? _viewport
+            ? viewport
             : new Viewport(0, 0, target.Description.Width, target.Description.Height);
         if (activeViewport.Width > 0 && activeViewport.Height > 0)
             gl.Viewport(activeViewport.X, activeViewport.Y, (uint)activeViewport.Width, (uint)activeViewport.Height);
         gl.DepthMask(true);
         gl.ClearColor(clearColor.X, clearColor.Y, clearColor.Z, clearColor.W);
         gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-        _frameActive = true;
+        frameActive = true;
     }
 
     /// <inheritdoc />
     public void EndFrame()
     {
         EnsureActive();
-        if (!_frameActive)
+        if (!frameActive)
             throw new InvalidOperationException("No frame is active.");
 
         var device = GetSilkDevice();
         device.EnsureContextCurrent();
-        var shouldPresent = _activeTarget is null;
-        _activeTarget = null;
-        _frameActive = false;
+        var shouldPresent = activeTarget is null;
+        activeTarget = null;
+        frameActive = false;
         device.Context.Api.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         if (shouldPresent)
             device.Context.Present();
@@ -111,15 +111,15 @@ public sealed class SilkRenderer3D : IRenderer3D
     public void SetCamera(Matrix4x4 view, Matrix4x4 projection)
     {
         EnsureActive();
-        _view = view;
-        _projection = projection;
+        this.view = view;
+        this.projection = projection;
     }
 
     /// <inheritdoc />
     public void SetWorldMatrix(Matrix4x4 world)
     {
         EnsureActive();
-        _world = world;
+        this.world = world;
     }
 
     /// <inheritdoc />
@@ -128,7 +128,7 @@ public sealed class SilkRenderer3D : IRenderer3D
         EnsureActive();
         ArgumentNullException.ThrowIfNull(pipeline);
         ValidateOwned(pipeline);
-        _currentPipeline = pipeline;
+        currentPipeline = pipeline;
     }
 
     /// <inheritdoc />
@@ -136,7 +136,7 @@ public sealed class SilkRenderer3D : IRenderer3D
     {
         EnsureActive();
         ArgumentNullException.ThrowIfNull(material);
-        _material = material;
+        this.material = material;
     }
 
     /// <inheritdoc />
@@ -148,7 +148,7 @@ public sealed class SilkRenderer3D : IRenderer3D
 
         ArgumentNullException.ThrowIfNull(texture);
         ValidateOwned(texture);
-        _boundTextures[slot] = texture;
+        boundTextures[slot] = texture;
     }
 
     /// <inheritdoc />
@@ -160,15 +160,15 @@ public sealed class SilkRenderer3D : IRenderer3D
             if (light.Type != LightType.Directional)
                 continue;
 
-            _lightDirection = light.Direction;
-            if (_lightDirection.LengthSquared() > 0f)
-                _lightDirection = Vector3.Normalize(_lightDirection);
-            _lightColor = light.Color * light.Intensity;
+            lightDirection = light.Direction;
+            if (lightDirection.LengthSquared() > 0f)
+                lightDirection = Vector3.Normalize(lightDirection);
+            lightColor = light.Color * light.Intensity;
             return;
         }
 
-        _lightDirection = new Vector3(-0.3f, -1f, -1f);
-        _lightColor = Vector3.One;
+        lightDirection = new Vector3(-0.3f, -1f, -1f);
+        lightColor = Vector3.One;
     }
 
     /// <inheritdoc />
@@ -180,9 +180,9 @@ public sealed class SilkRenderer3D : IRenderer3D
         ValidateOwned(vertexBuffer);
         ValidateOwned(indexBuffer);
 
-        if (_currentPipeline is null)
+        if (currentPipeline is null)
             throw new InvalidOperationException("No render pipeline has been bound.");
-        if (!_frameActive)
+        if (!frameActive)
             throw new InvalidOperationException("DrawIndexed must be called between BeginFrame and EndFrame.");
 
         if (indexCount <= 0)
@@ -203,26 +203,26 @@ public sealed class SilkRenderer3D : IRenderer3D
         var gl = device.Context.Api;
         var vertices = (SilkRenderDevice.SilkVertexBuffer)vertexBuffer;
         var indices = (SilkRenderDevice.SilkIndexBuffer)indexBuffer;
-        var pipeline = (SilkRenderDevice.SilkRenderPipeline)_currentPipeline;
+        var pipeline = (SilkRenderDevice.SilkRenderPipeline)currentPipeline;
         ValidateOwned(pipeline);
         ValidateOwned(pipeline.Description.ShaderProgram);
         var shader = (SilkRenderDevice.SilkShaderProgram)pipeline.Description.ShaderProgram;
 
         ApplyPipelineState(gl, pipeline.Description);
         gl.UseProgram(shader.Handle);
-        SetMatrix(gl, shader.Handle, "uModel", _world);
-        SetMatrix(gl, shader.Handle, "uView", _view);
-        SetMatrix(gl, shader.Handle, "uProjection", _projection);
+        SetMatrix(gl, shader.Handle, "uModel", world);
+        SetMatrix(gl, shader.Handle, "uView", view);
+        SetMatrix(gl, shader.Handle, "uProjection", projection);
 
-        var materialColor = _material?.BaseColor ?? Vector4.One;
-        if (_material is not null)
-            materialColor.W *= _material.Opacity;
+        var materialColor = material?.BaseColor ?? Vector4.One;
+        if (material is not null)
+            materialColor.W *= material.Opacity;
         SetVector4(gl, shader.Handle, "uBaseColor", materialColor);
 
-        SetVector3(gl, shader.Handle, "uLightDirection", _lightDirection);
-        SetVector3(gl, shader.Handle, "uLightColor", _lightColor);
+        SetVector3(gl, shader.Handle, "uLightDirection", lightDirection);
+        SetVector3(gl, shader.Handle, "uLightColor", lightColor);
 
-        var boundTexture = _boundTextures.GetValueOrDefault(0);
+        var boundTexture = boundTextures.GetValueOrDefault(0);
         if (boundTexture is not null)
             ValidateOwned(boundTexture);
         var texture = boundTexture as SilkRenderDevice.SilkTextureResource;
@@ -257,10 +257,10 @@ public sealed class SilkRenderer3D : IRenderer3D
             return;
 
         IsDisposed = true;
-        _currentPipeline = null;
-        _boundTextures.Clear();
-        _material = null;
-        _activeTarget = null;
+        currentPipeline = null;
+        boundTextures.Clear();
+        material = null;
+        activeTarget = null;
     }
 
     private void EnsureActive()
@@ -272,13 +272,13 @@ public sealed class SilkRenderer3D : IRenderer3D
     private void ValidateOwned(IGraphicsResource resource)
     {
         ArgumentNullException.ThrowIfNull(resource);
-        if (!ReferenceEquals(resource.Owner, _device))
+        if (!ReferenceEquals(resource.Owner, device))
             throw new ArgumentException("Resource belongs to another device.", nameof(resource));
         if (resource.IsDisposed)
             throw new ObjectDisposedException(resource.GetType().Name);
     }
 
-    private SilkRenderDevice GetSilkDevice() => _device as SilkRenderDevice
+    private SilkRenderDevice GetSilkDevice() => device as SilkRenderDevice
         ?? throw new InvalidOperationException("SilkRenderer3D requires a SilkRenderDevice.");
 
     private static void ApplyPipelineState(GL gl, RenderPipelineDescription description)

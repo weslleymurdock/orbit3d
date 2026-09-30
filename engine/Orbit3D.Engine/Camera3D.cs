@@ -13,24 +13,24 @@ public class Camera3D
     /// </summary>
     public Transform3D Transform { get; } = new Transform3D();
 
-    private float _fieldOfView = MathF.PI / 4f; // 45 degrees
-    private float _aspectRatio = 16f / 9f;
-    private float _nearClip = 0.1f;
-    private float _farClip = 1000f;
+    private float fieldOfView = MathF.PI / 4f; // 45 degrees
+    private float aspectRatio = 16f / 9f;
+    private float nearClip = 0.1f;
+    private float farClip = 1000f;
 
-    private Matrix4x4 _projectionMatrix;
-    private bool _isProjectionDirty = true;
+    private Matrix4x4 projectionMatrix;
+    private bool isProjectionDirty = true;
 
     /// <summary>
     /// Gets or sets the field of view in radians.
     /// </summary>
     public float FieldOfView
     {
-        get => _fieldOfView;
+        get => fieldOfView;
         set
         {
-            _fieldOfView = value;
-            _isProjectionDirty = true;
+            fieldOfView = value;
+            isProjectionDirty = true;
         }
     }
 
@@ -39,11 +39,11 @@ public class Camera3D
     /// </summary>
     public float AspectRatio
     {
-        get => _aspectRatio;
+        get => aspectRatio;
         set
         {
-            _aspectRatio = value;
-            _isProjectionDirty = true;
+            aspectRatio = value;
+            isProjectionDirty = true;
         }
     }
 
@@ -52,11 +52,11 @@ public class Camera3D
     /// </summary>
     public float NearClip
     {
-        get => _nearClip;
+        get => nearClip;
         set
         {
-            _nearClip = value;
-            _isProjectionDirty = true;
+            nearClip = value;
+            isProjectionDirty = true;
         }
     }
 
@@ -65,11 +65,11 @@ public class Camera3D
     /// </summary>
     public float FarClip
     {
-        get => _farClip;
+        get => farClip;
         set
         {
-            _farClip = value;
-            _isProjectionDirty = true;
+            farClip = value;
+            isProjectionDirty = true;
         }
     }
 
@@ -93,16 +93,16 @@ public class Camera3D
     {
         get
         {
-            if (_isProjectionDirty)
+            if (isProjectionDirty)
             {
                 // Note: System.Numerics CreatePerspectiveFieldOfView creates a right-handed perspective projection
                 // that maps Z to [-1, 1]. If a different depth range (e.g., [0, 1]) is required by the graphics API,
                 // this may need to be adjusted or abstracted in the renderer layer.
-                _projectionMatrix = Matrix4x4.CreatePerspectiveFieldOfView(_fieldOfView, _aspectRatio, _nearClip, _farClip);
-                _isProjectionDirty = false;
+                projectionMatrix = Matrix4x4.CreatePerspectiveFieldOfView(fieldOfView, aspectRatio, nearClip, farClip);
+                isProjectionDirty = false;
             }
 
-            return _projectionMatrix;
+            return projectionMatrix;
         }
     }
 }

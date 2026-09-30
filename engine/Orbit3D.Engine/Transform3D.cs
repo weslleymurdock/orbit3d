@@ -8,36 +8,36 @@ namespace Orbit3D.Engine;
 /// </summary>
 public class Transform3D
 {
-    private Vector3 _position = Vector3.Zero;
-    private Quaternion _rotation = Quaternion.Identity;
-    private Vector3 _scale = Vector3.One;
+    private Vector3 position = Vector3.Zero;
+    private Quaternion rotation = Quaternion.Identity;
+    private Vector3 scale = Vector3.One;
 
-    private Matrix4x4 _localMatrix = Matrix4x4.Identity;
-    private Matrix4x4 _worldMatrix = Matrix4x4.Identity;
-    private bool _isLocalDirty = false;
-    private bool _isWorldDirty = false;
+    private Matrix4x4 localMatrix = Matrix4x4.Identity;
+    private Matrix4x4 worldMatrix = Matrix4x4.Identity;
+    private bool isLocalDirty = false;
+    private bool isWorldDirty = false;
 
     /// <summary>
     /// Gets or sets the parent transform.
     /// </summary>
     public Transform3D? Parent { get; private set; }
 
-    private readonly List<Transform3D> _children = new();
+    private readonly List<Transform3D> children = new();
 
     /// <summary>
     /// Gets the children transforms.
     /// </summary>
-    public IReadOnlyList<Transform3D> Children => _children;
+    public IReadOnlyList<Transform3D> Children => children;
 
     /// <summary>
     /// Gets or sets the local position.
     /// </summary>
     public Vector3 Position
     {
-        get => _position;
+        get => position;
         set
         {
-            _position = value;
+            position = value;
             SetDirty();
         }
     }
@@ -47,10 +47,10 @@ public class Transform3D
     /// </summary>
     public Quaternion Rotation
     {
-        get => _rotation;
+        get => rotation;
         set
         {
-            _rotation = value;
+            rotation = value;
             SetDirty();
         }
     }
@@ -60,10 +60,10 @@ public class Transform3D
     /// </summary>
     public Vector3 Scale
     {
-        get => _scale;
+        get => scale;
         set
         {
-            _scale = value;
+            scale = value;
             SetDirty();
         }
     }
@@ -75,15 +75,15 @@ public class Transform3D
     {
         get
         {
-            if (_isLocalDirty)
+            if (isLocalDirty)
             {
-                _localMatrix = Matrix4x4.CreateScale(_scale) *
-                               Matrix4x4.CreateFromQuaternion(_rotation) *
-                               Matrix4x4.CreateTranslation(_position);
-                _isLocalDirty = false;
+                localMatrix = Matrix4x4.CreateScale(scale) *
+                               Matrix4x4.CreateFromQuaternion(rotation) *
+                               Matrix4x4.CreateTranslation(position);
+                isLocalDirty = false;
             }
 
-            return _localMatrix;
+            return localMatrix;
         }
     }
 
@@ -94,21 +94,21 @@ public class Transform3D
     {
         get
         {
-            if (_isWorldDirty)
+            if (isWorldDirty)
             {
                 if (Parent != null)
                 {
-                    _worldMatrix = LocalMatrix * Parent.WorldMatrix;
+                    worldMatrix = LocalMatrix * Parent.WorldMatrix;
                 }
                 else
                 {
-                    _worldMatrix = LocalMatrix;
+                    worldMatrix = LocalMatrix;
                 }
 
-                _isWorldDirty = false;
+                isWorldDirty = false;
             }
 
-            return _worldMatrix;
+            return worldMatrix;
         }
     }
 
@@ -120,9 +120,9 @@ public class Transform3D
     {
         if (Parent == parent) return;
 
-        Parent?._children.Remove(this);
+        Parent?.children.Remove(this);
         Parent = parent;
-        Parent?._children.Add(this);
+        Parent?.children.Add(this);
 
         SetDirty(true);
     }
@@ -131,12 +131,12 @@ public class Transform3D
     {
         if (!worldOnly)
         {
-            _isLocalDirty = true;
+            isLocalDirty = true;
         }
 
-        _isWorldDirty = true;
+        isWorldDirty = true;
 
-        foreach (var child in _children)
+        foreach (var child in children)
         {
             child.SetDirty(true);
         }

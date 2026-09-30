@@ -8,11 +8,11 @@ namespace Orbit3D.Graphics.Silk;
 /// </summary>
 public sealed class SilkGraphicsContext
 {
-    private readonly Func<bool> _isCurrent;
-    private readonly Action? _present;
-    private readonly bool _presentAfterRenderCallback;
-    private readonly int _threadId;
-    private bool _apiDisposed;
+    private readonly Func<bool> isCurrent;
+    private readonly Action? present;
+    private readonly bool presentAfterRenderCallback;
+    private readonly int threadId;
+    private bool apiDisposed;
 
     /// <summary>
     /// Creates a Silk graphics context wrapper for an already-current native context.
@@ -36,10 +36,10 @@ public sealed class SilkGraphicsContext
         if (!isCurrent())
             throw new InvalidOperationException("The native OpenGL context must be current before creating Silk resources.");
 
-        _isCurrent = isCurrent;
-        _present = present;
-        _presentAfterRenderCallback = presentAfterRenderCallback;
-        _threadId = Environment.CurrentManagedThreadId;
+        this.isCurrent = isCurrent;
+        this.present = present;
+        this.presentAfterRenderCallback = presentAfterRenderCallback;
+        threadId = Environment.CurrentManagedThreadId;
         IsOpenGles = isOpenGles;
         Api = GL.GetApi(getProcAddress);
     }
@@ -50,31 +50,31 @@ public sealed class SilkGraphicsContext
     public bool IsOpenGles { get; }
 
     /// <summary>Gets whether this context is current on its owning render thread.</summary>
-    public bool IsCurrent => Environment.CurrentManagedThreadId == _threadId && _isCurrent();
+    public bool IsCurrent => Environment.CurrentManagedThreadId == threadId && isCurrent();
 
-    internal bool IsApiDisposed => _apiDisposed;
+    internal bool IsApiDisposed => apiDisposed;
 
     internal void EnsureCurrent()
     {
-        ObjectDisposedException.ThrowIf(_apiDisposed, this);
-        if (Environment.CurrentManagedThreadId != _threadId)
+        ObjectDisposedException.ThrowIf(apiDisposed, this);
+        if (Environment.CurrentManagedThreadId != threadId)
             throw new InvalidOperationException("OpenGL operations must run on the graphics context thread.");
-        if (!_isCurrent())
+        if (!isCurrent())
             throw new InvalidOperationException("The native OpenGL context is not current on the graphics context thread.");
     }
 
     internal void Present()
     {
         EnsureCurrent();
-        if (!_presentAfterRenderCallback)
-            _present!();
+        if (!presentAfterRenderCallback)
+            present!();
     }
 
     internal void DisposeApi()
     {
-        if (_apiDisposed)
+        if (apiDisposed)
             return;
-        _apiDisposed = true;
+        apiDisposed = true;
         Api.Dispose();
     }
 }

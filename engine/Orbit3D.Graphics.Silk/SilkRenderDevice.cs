@@ -9,7 +9,7 @@ namespace Orbit3D.Graphics.Silk;
 /// </summary>
 public sealed class SilkRenderDevice : IRenderDevice
 {
-    private readonly List<IGraphicsResource> _resources = [];
+    private readonly List<IGraphicsResource> resources = [];
 
     /// <summary>Creates a device bound to a current native Silk graphics context.</summary>
     public SilkRenderDevice(SilkGraphicsContext context)
@@ -211,7 +211,7 @@ public sealed class SilkRenderDevice : IRenderDevice
             return;
 
         IsDisposed = true;
-        foreach (var resource in _resources.ToArray())
+        foreach (var resource in resources.ToArray())
         {
             if (Context.IsCurrent)
                 resource.Dispose();
@@ -230,7 +230,7 @@ public sealed class SilkRenderDevice : IRenderDevice
             throw new ObjectDisposedException(resource.GetType().Name);
     }
 
-    internal void Unregister(IGraphicsResource resource) => _resources.Remove(resource);
+    internal void Unregister(IGraphicsResource resource) => resources.Remove(resource);
 
     private static void ValidateDescription(VertexBufferDescription description, int actualLength, string paramName)
     {
@@ -403,7 +403,7 @@ public sealed class SilkRenderDevice : IRenderDevice
 
     private T Register<T>(T resource) where T : IGraphicsResource
     {
-        _resources.Add(resource);
+        resources.Add(resource);
         return resource;
     }
 

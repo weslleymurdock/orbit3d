@@ -11,7 +11,6 @@ namespace Orbit3D.Graphics.Silk;
 /// </summary>
 public sealed class SilkRenderer3D : IRenderer3D
 {
-    private readonly IRenderDevice device;
     private readonly Dictionary<int, ITextureResource> boundTextures = [];
     private Vector3 lightDirection = new(-0.3f, -1f, -1f);
     private Vector3 lightColor = Vector3.One;
@@ -20,8 +19,8 @@ public sealed class SilkRenderer3D : IRenderer3D
     private Matrix4x4 view = Matrix4x4.Identity;
     private Matrix4x4 projection = Matrix4x4.Identity;
     private Matrix4x4 world = Matrix4x4.Identity;
-    private Viewport viewport;
     private IRenderTarget? activeTarget;
+
     private bool frameActive;
 
     /// <summary>
@@ -30,15 +29,15 @@ public sealed class SilkRenderer3D : IRenderer3D
     public SilkRenderer3D(IRenderDevice device)
     {
         ArgumentNullException.ThrowIfNull(device);
-        this.device = device;
-        viewport = new Viewport(0, 0, 0, 0);
+        Device = device;
+        Viewport = new Viewport(0, 0, 0, 0);
     }
 
     /// <inheritdoc />
-    public IRenderDevice Device => device;
+    public IRenderDevice Device { get; }
 
     /// <inheritdoc />
-    public Viewport Viewport => viewport;
+    public Viewport Viewport { get; private set; }
 
     /// <inheritdoc />
     public bool IsDisposed { get; private set; }
@@ -57,7 +56,7 @@ public sealed class SilkRenderer3D : IRenderer3D
     public void SetViewport(Viewport viewport)
     {
         EnsureActive();
-        this.viewport = viewport;
+        Viewport = viewport;
         var device = GetSilkDevice();
         device.EnsureContextCurrent();
         if (viewport.Width > 0 && viewport.Height > 0)
@@ -80,7 +79,7 @@ public sealed class SilkRenderer3D : IRenderer3D
         var target = renderTarget as SilkRenderDevice.SilkRenderTarget;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, target?.Framebuffer ?? 0);
         var activeViewport = target is null
-            ? viewport
+            ? Viewport
             : new Viewport(0, 0, target.Description.Width, target.Description.Height);
         if (activeViewport.Width > 0 && activeViewport.Height > 0)
             gl.Viewport(activeViewport.X, activeViewport.Y, (uint)activeViewport.Width, (uint)activeViewport.Height);
@@ -272,13 +271,13 @@ public sealed class SilkRenderer3D : IRenderer3D
     private void ValidateOwned(IGraphicsResource resource)
     {
         ArgumentNullException.ThrowIfNull(resource);
-        if (!ReferenceEquals(resource.Owner, device))
+        if (!ReferenceEquals(resource.Owner, Device))
             throw new ArgumentException("Resource belongs to another device.", nameof(resource));
         if (resource.IsDisposed)
             throw new ObjectDisposedException(resource.GetType().Name);
     }
 
-    private SilkRenderDevice GetSilkDevice() => device as SilkRenderDevice
+    private SilkRenderDevice GetSilkDevice() => Device as SilkRenderDevice
         ?? throw new InvalidOperationException("SilkRenderer3D requires a SilkRenderDevice.");
 
     private static void ApplyPipelineState(GL gl, RenderPipelineDescription description)

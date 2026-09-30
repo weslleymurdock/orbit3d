@@ -28,6 +28,16 @@ public class SilkGraphicsBackendTests
     }
 
     [Fact]
+    public void UseSilkGraphics_WindowsRegistersEngineServices()
+    {
+        var builder = MauiApp.CreateBuilder();
+
+        builder.UseSilkGraphics();
+
+        Assert.Contains(builder.Services, descriptor => descriptor.ServiceType == typeof(IModelImporter));
+    }
+
+    [Fact]
     public void GameSceneView3D_ExposesSurfaceAndSceneOwner()
     {
         var view = new GameSceneView3D();

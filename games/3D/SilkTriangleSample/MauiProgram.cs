@@ -2,7 +2,7 @@
 #if MAUI_DEVFLOW
 using Microsoft.Maui.DevFlow.Agent;
 #endif
-#if ANDROID
+#if ANDROID || WINDOWS
 using Orbit3D.Graphics.Silk;
 #endif
 
@@ -15,9 +15,8 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
-#if ANDROID
+#if ANDROID || WINDOWS
 			.UseSilkGraphics()
-			.ConfigureMauiHandlers(handlers => handlers.AddHandler(typeof(SilkGraphicsSurface), typeof(SilkGraphicsSurfaceHandler)))
 #endif
 #if MAUI_DEVFLOW
 			.AddMauiDevFlowAgent()
@@ -28,7 +27,7 @@ public static class MauiProgram
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
 			});
 
-#if ANDROID
+#if ANDROID || WINDOWS
         builder.Services.AddTransient<GraphicSurfacePage>();
 #endif
 

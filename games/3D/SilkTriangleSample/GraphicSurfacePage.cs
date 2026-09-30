@@ -8,6 +8,8 @@ namespace SilkTriangleSample;
 
 public sealed class GraphicSurfacePage : ContentPage
 {
+    private const string ModelAssetName = "toyota-gazoo-racing-wrt-gr-yaris-1-10.glb";
+    private const string TextureAssetName = "toyota-gazoo-racing-wrt-gr-yaris-1-10.png";
     private readonly IModelImporter modelImporter;
     private readonly IAssetCache assetCache = new ModelAssetCache();
     private readonly GpuResourceCache gpuResourceCache = new();
@@ -16,8 +18,10 @@ public sealed class GraphicSurfacePage : ContentPage
     private readonly Label statusLabel;
     private readonly object renderLock = new();
     private bool importStarted;
+    private bool firstRenderedFrameLogged;
     private long lastMetricsUpdateTimestamp;
     private Scene3D? scene;
+    private SilkGraphicsContext? graphicsContext;
     private IRenderDevice? device;
     private IRenderer3D? renderer;
     private IRenderPipeline? pipeline;
@@ -46,16 +50,25 @@ public sealed class GraphicSurfacePage : ContentPage
 
         statusLabel = new Label
         {
-            Text = "Importing poly.obj...",
+            Text = $"Importing {ModelAssetName}...",
             Margin = new Thickness(12),
             FontSize = 14,
-            HorizontalOptions = LayoutOptions.Start,
-            VerticalOptions = LayoutOptions.Start,
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Center,
             TextColor = Colors.White,
-            Background = new SolidColorBrush(Color.FromArgb("#C0000000"))
+            Background = new SolidColorBrush(Color.FromArgb("#FF20242B"))
         };
 
-        var layout = new Grid();
+        var layout = new Grid
+        {
+            RowDefinitions =
+            {
+                new RowDefinition { Height = GridLength.Star },
+                new RowDefinition { Height = GridLength.Auto }
+            }
+        };
+        Grid.SetRow(surface, 0);
+        Grid.SetRow(statusLabel, 1);
         layout.Children.Add(surface);
         layout.Children.Add(statusLabel);
         Content = layout;
@@ -64,6 +77,7 @@ public sealed class GraphicSurfacePage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        surface.IsVisible = true;
         if (importStarted)
             return;
 
@@ -71,7 +85,7 @@ public sealed class GraphicSurfacePage : ContentPage
         try
         {
             byte[] assetData;
-            await using (var asset = await FileSystem.OpenAppPackageFileAsync("poly.obj"))
+            await using (var asset = await FileSystem.OpenAppPackageFileAsync(ModelAssetName))
             using (var buffer = new MemoryStream())
             {
                 await asset.CopyToAsync(buffer);
@@ -82,18 +96,35 @@ public sealed class GraphicSurfacePage : ContentPage
             {
                 using var stream = new MemoryStream(assetData, writable: false);
                 var settings = new AssetImportSettings { GenerateNormals = true, Triangulate = true, JoinIdenticalVertices = true, FlipUVs = true };
-                return assetCache.GetOrAdd("poly.obj", () => modelImporter.Import(stream, "obj"), settings);
+                return assetCache.GetOrAdd(ModelAssetName, () => modelImporter.Import(stream, "glb"), settings);
             });
 
-            foreach (var material in model.Materials)
+            byte[] textureData;
+            await using (var asset = await FileSystem.OpenAppPackageFileAsync(TextureAssetName))
+            using (var buffer = new MemoryStream())
             {
-                if (material.BaseColorTexture is null)
-                    material.BaseColorTexture = CreateSampleTexture();
+                await asset.CopyToAsync(buffer);
+                textureData = buffer.ToArray();
+            }
+
+            var texture = await SampleTextureLoader.LoadRgbaAsync(textureData);
+            var material = new Material3D
+            {
+                Name = "Toyota body sidecar texture",
+                BaseColorTexture = texture,
+                BaseColor = Vector4.One
+            };
+            model.Materials.Add(material);
+            foreach (var mesh in model.Meshes)
+            {
+                mesh.MaterialIndex = model.Materials.Count - 1;
+                if (mesh.TextureCoordinates is null)
+                    mesh.TextureCoordinates = CreateSideProjectionUvs(mesh);
             }
 
             var runtimeScene = new Scene3D();
-            var rootNode = new Node3D { Name = "poly.obj", Model = model };
-            rootNode.SetParent(runtimeScene.RootNode);
+            model.RootNode.Name = ModelAssetName;
+            model.RootNode.SetParent(runtimeScene.RootNode);
             runtimeScene.MainCamera = CreateCamera();
             cameraController.Attach(runtimeScene.MainCamera, target: Vector3.Zero, distance: 5.5f);
             runtimeScene.Lights.Add(new Light3D
@@ -110,10 +141,12 @@ public sealed class GraphicSurfacePage : ContentPage
             }
 
             var renderQueue = runtimeScene.BuildRenderQueue(runtimeScene.MainCamera, surfaceWidth, surfaceHeight);
-            SetStatusText($"Runtime scene ready: {renderQueue.Count} queued meshes");
+            LogDiagnostic($"Imported {ModelAssetName}: {model.Meshes.Count} mesh(es), {texture.Width}x{texture.Height} sidecar texture, {renderQueue.Count} queued item(s).");
+            SetStatusText($"Loaded GLB + sidecar PNG | {renderQueue.Count} mesh(es)");
         }
         catch (Exception exception)
         {
+            Console.Error.WriteLine($"[SilkSample] Import failed: {exception}");
             SetStatusText($"Import failed: {exception.Message}");
         }
     }
@@ -121,22 +154,17 @@ public sealed class GraphicSurfacePage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        gpuResourceCache.Invalidate();
-        if (renderer is not null)
-            renderer.Dispose();
-        if (device is not null)
-            device.Dispose();
-        renderer = null;
-        device = null;
-        pipeline = null;
+        surface.IsVisible = false;
     }
 
     private void OnContextCreated(object? sender, SilkGraphicsContextEventArgs args)
     {
+        graphicsContext = args.Context;
+        LogDiagnostic("Silk graphics context created.");
         device = SilkGraphicsFactory.CreateDevice(args.Context);
         gpuResourceCache.SetDevice(device);
         renderer = SilkGraphicsFactory.CreateRenderer(device);
-        var shaderProgram = device.CreateShaderProgram(new ShaderProgramDescription(ShaderProgramKind.UnlitTextured, "RuntimeSceneShader"));
+        var shaderProgram = device.CreateShaderProgram(new ShaderProgramDescription(ShaderProgramKind.BasicLitTextured, "RuntimeSceneShader"));
         pipeline = device.CreatePipeline(new RenderPipelineDescription(shaderProgram, cullMode: CullMode.Back));
         renderer.SetPipeline(pipeline);
         renderer.Resize(surfaceWidth, surfaceHeight);
@@ -145,10 +173,17 @@ public sealed class GraphicSurfacePage : ContentPage
 
     private void OnContextLost(object? sender, SilkGraphicsContextEventArgs args)
     {
-        gpuResourceCache.Invalidate();
+        if (ReferenceEquals(graphicsContext, args.Context) && args.Context.IsCurrent)
+            gpuResourceCache.Clear();
+        else
+            gpuResourceCache.Invalidate();
+        LogDiagnostic($"Silk graphics context lost; current={args.Context.IsCurrent}.");
+        renderer?.Dispose();
+        device?.Dispose();
         renderer = null;
         device = null;
         pipeline = null;
+        graphicsContext = null;
         SetStatusText("Graphics context lost; recreating GPU resources on next frame.");
     }
 
@@ -156,6 +191,7 @@ public sealed class GraphicSurfacePage : ContentPage
     {
         surfaceWidth = Math.Max(args.Width, 1);
         surfaceHeight = Math.Max(args.Height, 1);
+        LogDiagnostic($"Graphics surface resized to {surfaceWidth}x{surfaceHeight} pixels.");
         if (renderer is not null)
             renderer.Resize(surfaceWidth, surfaceHeight);
     }
@@ -212,10 +248,11 @@ public sealed class GraphicSurfacePage : ContentPage
                 {
                     textureResource = gpuResourceCache.GetOrCreateTexture(material.BaseColorTexture, (renderDevice, texture) =>
                     {
-                        var width = texture.Width > 0 ? texture.Width : 4;
-                        var height = texture.Height > 0 ? texture.Height : 4;
-                        var pixels = texture.Data ?? CreateSamplePixels(width, height);
-                        return renderDevice.CreateTexture(new TextureDescription(width, height, texture.PixelFormat), pixels);
+                        if (!texture.HasPixelData)
+                            throw new InvalidOperationException($"Texture '{texture.Name}' has no decoded pixel data.");
+                        return renderDevice.CreateTexture(
+                            new TextureDescription(texture.Width, texture.Height, texture.PixelFormat),
+                            texture.Data!);
                     });
                     renderer.BindTexture(0, textureResource);
                 }
@@ -234,6 +271,11 @@ public sealed class GraphicSurfacePage : ContentPage
         {
             renderer.EndFrame();
             var metrics = ((SilkRenderer3D)renderer).Metrics;
+            if (metrics.DrawCalls > 0 && !firstRenderedFrameLogged)
+            {
+                firstRenderedFrameLogged = true;
+                LogDiagnostic($"First rendered frame: {metrics.DrawCalls} indexed draw(s), {metrics.TriangleCount} triangle(s).");
+            }
             UpdateMetricsStatus(metrics);
         }
     }
@@ -245,6 +287,13 @@ public sealed class GraphicSurfacePage : ContentPage
             if (!string.Equals(statusLabel.Text, text, StringComparison.Ordinal))
                 statusLabel.Text = text;
         });
+    }
+
+    private static void LogDiagnostic(string message)
+    {
+        var diagnostic = $"[SilkSample] {message}";
+        Debug.WriteLine(diagnostic);
+        Console.WriteLine(diagnostic);
     }
 
     private void UpdateMetricsStatus(RenderMetrics metrics)
@@ -266,37 +315,30 @@ public sealed class GraphicSurfacePage : ContentPage
         AspectRatio = 1.7777778f
     };
 
-    private static Texture2D CreateSampleTexture()
+    private static Vector2[] CreateSideProjectionUvs(Mesh3D mesh)
     {
-        const int size = 4;
-        return new Texture2D
-        {
-            Name = "runtime-checker",
-            Usage = TextureUsage.BaseColor,
-            Width = size,
-            Height = size,
-            PixelFormat = TextureFormat.Rgba8Unorm,
-            Data = CreateSamplePixels(size, size)
-        };
-    }
+        var positions = mesh.Positions ?? throw new InvalidOperationException($"Mesh '{mesh.Name}' has no positions.");
+        if (positions.Length == 0)
+            throw new InvalidOperationException($"Mesh '{mesh.Name}' contains no positions.");
 
-    private static byte[] CreateSamplePixels(int width, int height)
-    {
-        var pixels = new byte[width * height * 4];
-        for (var y = 0; y < height; y++)
+        var minimumY = positions[0].Y;
+        var maximumY = positions[0].Y;
+        var minimumZ = positions[0].Z;
+        var maximumZ = positions[0].Z;
+        foreach (var position in positions)
         {
-            for (var x = 0; x < width; x++)
-            {
-                var index = (y * width + x) * 4;
-                var isDark = ((x + y) % 2) == 0;
-                pixels[index] = isDark ? (byte)128 : (byte)255;
-                pixels[index + 1] = isDark ? (byte)64 : (byte)220;
-                pixels[index + 2] = (byte)180;
-                pixels[index + 3] = (byte)255;
-            }
+            minimumY = Math.Min(minimumY, position.Y);
+            maximumY = Math.Max(maximumY, position.Y);
+            minimumZ = Math.Min(minimumZ, position.Z);
+            maximumZ = Math.Max(maximumZ, position.Z);
         }
 
-        return pixels;
+        var yRange = Math.Max(maximumY - minimumY, float.Epsilon);
+        var zRange = Math.Max(maximumZ - minimumZ, float.Epsilon);
+        var uvs = new Vector2[positions.Length];
+        for (var i = 0; i < positions.Length; i++)
+            uvs[i] = new Vector2((positions[i].Z - minimumZ) / zRange, 1f - (positions[i].Y - minimumY) / yRange);
+        return uvs;
     }
 
     private sealed class CameraOrbitController

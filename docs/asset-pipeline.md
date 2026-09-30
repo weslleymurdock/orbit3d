@@ -25,3 +25,6 @@ Cache by stable asset identity plus relevant import settings. CPU asset caching 
 
 ## Formats
 Validate representative formats actually supported by the installed Assimp.MAUI build. Prefer at least one glTF asset and one traditional format such as OBJ for the 0.1-rc1 validation set.
+
+## Stage 07 Windows sample assets
+The Windows runtime sample packages `toyota-gazoo-racing-wrt-gr-yaris-1-10.glb` and its same-basename `toyota-gazoo-racing-wrt-gr-yaris-1-10.png` sidecar from `assets/`. The checked-in GLB contains geometry only: it has no material, image, texture, or `TEXCOORD_0` attributes. The sample imports its mesh with Assimp.MAUI, decodes the real PNG to RGBA pixels, creates a `Texture2D` and material, and computes a one-time side projection only when source UVs are absent. It does not replace either asset with generated geometry or image data. This sample-specific UV fallback demonstrates the texture upload/draw path; it is not a substitute for author-authored UVs in production assets.

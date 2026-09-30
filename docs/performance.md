@@ -34,3 +34,6 @@ Benchmark representative assets and object counts, recording platform/device/con
 
 ## Stage 06 runtime notes
 The runtime path keeps CPU asset caches and GPU caches separate. A `GpuResourceCache` is bound to the active `IRenderDevice`, invalidates stale entries when the graphics context changes, and rebuilds buffers/textures lazily from the original `Mesh3D` and `Texture2D` data instead of reusing handles from a lost context. Per-frame metrics are derived from the actual `DrawIndexed` calls that reach the backend so that skipped or invalid queue items do not inflate `DrawCalls` or `RenderedItems`.
+
+## Stage 07 Windows lifecycle
+The Windows WGL context is created and used on the WinUI UI thread. The surface obtains actual pixel dimensions from its native child HWND after layout/DPI changes and stops submitting frames while hidden. On unload, context loss is signaled while WGL is still current so the sample can dispose its GPU cache and device-owned pipeline resources deterministically; a recreated context rebuilds GPU data from retained CPU-side model and texture data.

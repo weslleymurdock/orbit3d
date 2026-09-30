@@ -12,7 +12,7 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-#if ANDROID
+#if ANDROID || WINDOWS
 	    return new Window(services.GetRequiredService<GraphicSurfacePage>());
 #else
         return new Window(new AppShell());

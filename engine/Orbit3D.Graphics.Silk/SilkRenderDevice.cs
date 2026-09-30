@@ -402,10 +402,10 @@ public sealed class SilkRenderDevice : IRenderDevice
     private static string GetFragmentSource(ShaderProgramKind kind, bool gles)
     {
         var version = gles ? "#version 300 es\nprecision mediump float;\n" : "#version 330 core\n";
-        var lighting = kind == ShaderProgramKind.BasicLit
+        var lighting = kind is ShaderProgramKind.BasicLit or ShaderProgramKind.BasicLitTextured
             ? "vec3 normal = length(vNormal) > 0.0001 ? normalize(vNormal) : vec3(0.0, 0.0, 1.0); float diffuse = max(dot(normal, normalize(-uLightDirection)), 0.0); color.rgb *= max(diffuse, 0.18) * uLightColor;\n"
             : string.Empty;
-        var texture = kind == ShaderProgramKind.UnlitTextured
+        var texture = kind is ShaderProgramKind.UnlitTextured or ShaderProgramKind.BasicLitTextured
             ? "color *= texture(uBaseTexture, vUv);\n"
             : string.Empty;
         return $$"""

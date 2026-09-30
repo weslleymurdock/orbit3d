@@ -113,7 +113,9 @@ public enum ShaderProgramKind
     /// <summary>Unlit material-color shading.</summary>
     Unlit,
     /// <summary>Unlit material-color and texture shading.</summary>
-    UnlitTextured
+    UnlitTextured,
+    /// <summary>Material-color and texture shading with directional lighting.</summary>
+    BasicLitTextured
 }
 
 /// <summary>Describes a backend-neutral shader program contract without exposing shader language source.</summary>

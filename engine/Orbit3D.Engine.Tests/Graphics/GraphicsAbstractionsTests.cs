@@ -54,6 +54,15 @@ public class GraphicsAbstractionsTests
     }
 
     [Fact]
+    public void ShaderDescription_AcceptsCombinedLitAndTexturedRuntimeShader()
+    {
+        var description = new ShaderProgramDescription(ShaderProgramKind.BasicLitTextured, "lit-textured");
+
+        Assert.Equal(ShaderProgramKind.BasicLitTextured, description.Kind);
+        Assert.Equal("lit-textured", description.Name);
+    }
+
+    [Fact]
     public void Device_CreatesOwnedResourcesAndDisposesThemWithDevice()
     {
         var device = new FakeRenderDevice();

@@ -47,6 +47,10 @@
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and '$(Configuration)' == 'Debug'">
+		<DefineConstants>$(DefineConstants);MAUI_DEVFLOW</DefineConstants>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
@@ -72,6 +76,10 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\..\..\engine\Orbit3D.Graphics.Silk\Orbit3D.Graphics.Silk.csproj" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and '$(Configuration)' == 'Debug'">
+		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Version="0.1.0-preview.12.26421.1" />
 	</ItemGroup>
 
 </Project>

@@ -17,14 +17,22 @@ This remains the 2D path.
 The scene/runtime must not know which graphics API is active.
 
 ## Dependency direction
-Game code -> Orbit runtime/model -> renderer abstractions.
+Game code -> Orbit.Engine (2D) / Orbit3D.Engine (3D).
+Orbit3D.Engine -> Orbit.Engine (Orbit3D.Engine owns the 3D functionality and Orbit.Engine must not become coupled to 3D).
 Asset import -> Assimp.MAUI -> Orbit-owned asset/model types.
 Platform backend -> renderer abstractions -> native graphics API.
 
 Never reverse these dependencies.
 
 ## Math
-Use `System.Numerics` where practical. Document coordinate system, handedness, units, matrix convention, camera forward direction and depth range.
+Use `System.Numerics` where practical.
+- Coordinate system: Right-handed (Y is up)
+- Handedness: Right-handed
+- Units: Meters (standard convention)
+- Matrix convention: Row-major (as per `System.Numerics`), multiplication order is Vector * Matrix
+- Camera forward direction: -Z (negative Z)
+- Front-face convention: Counter-clockwise (CCW)
+- Depth range: Platform dependent (handled by renderer backend)
 
 ## 2D/3D coexistence
 Do not replace the 2D renderer. Introduce 3D-specific runtime types where semantics differ. Future composition may combine 2D overlays and 3D rendering.

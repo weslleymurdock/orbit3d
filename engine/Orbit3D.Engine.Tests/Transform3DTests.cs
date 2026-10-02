@@ -85,4 +85,19 @@ public class Transform3DTests
         // World position of node2 should update
         Assert.Equal(new Vector3(15, 0, 0), node2.WorldMatrix.Translation);
     }
+
+    [Fact]
+    public void SetParent_RejectsSelfAndDescendantCycles()
+    {
+        var root = new Transform3D();
+        var child = new Transform3D();
+        var grandChild = new Transform3D();
+
+        child.SetParent(root);
+        grandChild.SetParent(child);
+
+        Assert.Throws<ArgumentException>(() => root.SetParent(root));
+        Assert.Throws<ArgumentException>(() => root.SetParent(grandChild));
+        Assert.Throws<ArgumentException>(() => child.SetParent(child));
+    }
 }

@@ -118,6 +118,12 @@ public class Transform3D
     /// <param name="parent">The new parent transform.</param>
     public void SetParent(Transform3D? parent)
     {
+        if (ReferenceEquals(parent, this))
+            throw new ArgumentException("A transform cannot be its own parent.", nameof(parent));
+
+        if (parent is not null && IsDescendantOf(parent, this))
+            throw new ArgumentException("A transform cannot be parented to one of its descendants.", nameof(parent));
+
         if (Parent == parent) return;
 
         Parent?.children.Remove(this);
@@ -125,6 +131,20 @@ public class Transform3D
         Parent?.children.Add(this);
 
         SetDirty(true);
+    }
+
+    private static bool IsDescendantOf(Transform3D candidate, Transform3D target)
+    {
+        var current = candidate;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, target))
+                return true;
+
+            current = current.Parent;
+        }
+
+        return false;
     }
 
     private void SetDirty(bool worldOnly = false)

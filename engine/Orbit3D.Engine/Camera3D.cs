@@ -29,6 +29,9 @@ public class Camera3D
         get => fieldOfView;
         set
         {
+            if (!float.IsFinite(value) || value <= 0f || value >= MathF.PI)
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Field of view must be finite, greater than zero, and less than PI radians.");
+
             fieldOfView = value;
             isProjectionDirty = true;
         }
@@ -42,6 +45,9 @@ public class Camera3D
         get => aspectRatio;
         set
         {
+            if (!float.IsFinite(value) || value <= 0f)
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Aspect ratio must be finite and greater than zero.");
+
             aspectRatio = value;
             isProjectionDirty = true;
         }
@@ -55,6 +61,11 @@ public class Camera3D
         get => nearClip;
         set
         {
+            if (!float.IsFinite(value) || value <= 0f)
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Near clipping plane must be finite and greater than zero.");
+            if (value >= farClip)
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Near clipping plane must be less than the far clipping plane.");
+
             nearClip = value;
             isProjectionDirty = true;
         }
@@ -68,6 +79,11 @@ public class Camera3D
         get => farClip;
         set
         {
+            if (!float.IsFinite(value) || value <= 0f)
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Far clipping plane must be finite and greater than zero.");
+            if (value <= nearClip)
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Far clipping plane must be greater than the near clipping plane.");
+
             farClip = value;
             isProjectionDirty = true;
         }

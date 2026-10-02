@@ -61,6 +61,12 @@ public class Node3D
     /// <param name="parent">The parent node.</param>
     public void SetParent(Node3D? parent)
     {
+        if (ReferenceEquals(parent, this))
+            throw new ArgumentException("A node cannot be its own parent.", nameof(parent));
+
+        if (parent is not null && IsDescendantOf(parent, this))
+            throw new ArgumentException("A node cannot be parented to one of its descendants.", nameof(parent));
+
         if (Parent == parent) return;
 
         Parent?._children.Remove(this);
@@ -68,5 +74,19 @@ public class Node3D
         Parent?._children.Add(this);
 
         Transform.SetParent(parent?.Transform);
+    }
+
+    private static bool IsDescendantOf(Node3D candidate, Node3D ancestor)
+    {
+        var current = candidate;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ancestor))
+                return true;
+
+            current = current.Parent;
+        }
+
+        return false;
     }
 }

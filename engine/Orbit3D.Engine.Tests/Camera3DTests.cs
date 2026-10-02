@@ -73,4 +73,16 @@ public class Camera3DTests
         Assert.NotEqual(initialView, updatedView);
         Assert.NotEqual(Matrix4x4.Identity, updatedView);
     }
+
+    [Fact]
+    public void InvalidProjectionSettings_ThrowArgumentOutOfRangeException()
+    {
+        var camera = new Camera3D();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => camera.FieldOfView = 0f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => camera.FieldOfView = MathF.PI + 0.01f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => camera.AspectRatio = 0f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => camera.NearClip = 0f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => camera.FarClip = 0.1f);
+    }
 }

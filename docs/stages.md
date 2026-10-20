@@ -2,6 +2,14 @@
 
 This document is the implementation roadmap for Orbit3D. Each stage has a focused scope and a definition of done (DoD). Completed stages describe the functionality already integrated into `main`; planned stages describe the next runtime milestones.
 
+## Platform target/version policy
+
+Apple targets must use the versions pinned by the repository root `global.json` and `Directory.Build.props`. In particular, the Apple workload/runtime package versions must not be upgraded or substituted ad hoc during development or validation.
+
+The current pinned Apple workload/runtime release is `26.5.10318`. This release is the supported configuration for building the .NET 10 Apple targets from an x64 Windows development host through the repository's SSH-based macOS workflow with Xcode 26.6. Apple target validation must therefore use the repository-pinned versions from `global.json` and `Directory.Build.props`; if the host/toolchain cannot satisfy those pins, the validation is considered blocked rather than changing the repository pins locally to make the build pass.
+
+For Apple stages, the supported remote-development topology is Windows x64 -> SSH -> Apple x64 host. The Apple implementation must remain compatible with that topology and must not assume an Apple Silicon host unless a later stage explicitly changes the supported matrix. Any Apple workload, SDK or Xcode version used for implementation or validation must be consistent with the repository pins and documented platform matrix.
+
 ## Stage 01 — 3D foundation
 
 Stage 01 establishes the backend-neutral 3D runtime model on top of the existing Orbit Engine and .NET MAUI stack. It adds transforms, scene hierarchy, cameras, meshes, materials, textures and basic lighting without coupling game/runtime code to a graphics API. It also establishes the initial Assimp importer boundary and the test project used by later stages.

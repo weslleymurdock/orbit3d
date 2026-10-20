@@ -28,6 +28,12 @@ public class SilkGraphicsBackendTests
     }
 
     [Fact]
+    public void UseSilkGraphics_ReportsCurrentPlatformSupport()
+    {
+        Assert.True(SilkGraphicsPlatformSupport.IsCurrentPlatformSupported());
+    }
+
+    [Fact]
     public void UseSilkGraphics_WindowsRegistersEngineServices()
     {
         var builder = MauiApp.CreateBuilder();

@@ -67,7 +67,8 @@ case "$PLATFORM" in
     *) fail "Unsupported platform: $PLATFORM" ;;
 esac
 
-ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+PROJECT="$ROOT/$PROJECT_PATH"
 ARTIFACTS="$ROOT/artifacts"
 mkdir -p "$ARTIFACTS"
 
@@ -78,6 +79,10 @@ VALIDATION_JSON="$ARTIFACTS/validation.json"
 SCREENSHOT="$ARTIFACTS/screenshot.png"
 
 progress 8 "Checking Apple toolchain..."
+if [ -x "$HOME/.dotnet/dotnet" ]; then
+    export DOTNET_ROOT="$HOME/.dotnet"
+    export PATH="$DOTNET_ROOT:$PATH"
+fi
 command -v dotnet >/dev/null 2>&1 || fail "dotnet was not found."
 command -v xcrun >/dev/null 2>&1 || fail "xcrun was not found."
 xcode-select -p > "$ARTIFACTS/xcode-path.txt" 2>&1 || fail "Xcode command-line tools are not configured."
@@ -101,13 +106,15 @@ fi
 progress 34 "Building and launching $PLATFORM..."
 
 if [ "$PLATFORM" = "ios" ]; then
-    dotnet build "$PROJECT_PATH" \
+    dotnet build "$PROJECT" \
         -c "$CONFIGURATION" \
         -f net10.0-ios \
-        -p:_DeviceName=":v2:udid=$SIMULATOR_ID" \
-        -t:Run > "$BUILD_LOG" 2>&1
+        -p:TargetFrameworks=net10.0-ios \
+        -p:TargetPlatformVersion=26.0 \
+        -p:ValidateXcodeVersion=false \
+    > "$BUILD_LOG" 2>&1
 else
-    dotnet build "$PROJECT_PATH" \
+    dotnet build "$PROJECT" \
         -c "$CONFIGURATION" \
         -f net10.0-maccatalyst \
         -t:Run > "$BUILD_LOG" 2>&1
@@ -117,6 +124,14 @@ BUILD_EXIT=$?
 cat "$BUILD_LOG"
 
 [ "$BUILD_EXIT" -eq 0 ] || fail "Apple build/run failed with exit code $BUILD_EXIT."
+
+if [ "$PLATFORM" = "ios" ]; then
+    APP_BUNDLE="$(find "$ROOT/games/3D/SilkTriangleSample/bin/$CONFIGURATION/net10.0-ios" -type d -name '*.app' -path '*iossimulator*' -print -quit)"
+    [ -n "$APP_BUNDLE" ] || fail "The iOS Simulator app bundle was not found after building."
+    APP_ID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_BUNDLE/Info.plist")"
+    xcrun simctl install "$SIMULATOR_ID" "$APP_BUNDLE" || fail "Could not install the app on the iOS Simulator."
+    xcrun simctl launch "$SIMULATOR_ID" "$APP_ID" > "$ARTIFACTS/launch-output.txt" 2> "$STDERR_LOG" || fail "Could not launch the app on the iOS Simulator."
+fi
 
 progress 58 "Waiting for the rendered frame..."
 sleep "$WAIT_SECONDS"

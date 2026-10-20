@@ -197,27 +197,20 @@ public sealed class GpuResourceCache
 
     private IRenderDevice EnsureDevice()
     {
-        if (currentDevice is null || currentDevice.IsDisposed)
-            throw new InvalidOperationException("A render device must be assigned to the GPU resource cache before creating resources.");
-
-        return currentDevice;
+        return currentDevice is null || currentDevice.IsDisposed
+            ? throw new InvalidOperationException("A render device must be assigned to the GPU resource cache before creating resources.")
+            : currentDevice;
     }
 
     private bool IsCompatible(IVertexBuffer vertexBuffer, IIndexBuffer indexBuffer)
     {
-        if (currentDevice is null || currentDevice.IsDisposed)
-            return false;
-
-        return !vertexBuffer.IsDisposed && !indexBuffer.IsDisposed &&
-               ReferenceEquals(vertexBuffer.Owner, currentDevice) &&
-               ReferenceEquals(indexBuffer.Owner, currentDevice);
+        return !(currentDevice is null || currentDevice.IsDisposed || vertexBuffer.IsDisposed || indexBuffer.IsDisposed ||
+               !ReferenceEquals(vertexBuffer.Owner, currentDevice) ||
+               !ReferenceEquals(indexBuffer.Owner, currentDevice));
     }
 
     private bool IsCompatible(ITextureResource texture)
     {
-        if (currentDevice is null || currentDevice.IsDisposed)
-            return false;
-
-        return !texture.IsDisposed && ReferenceEquals(texture.Owner, currentDevice);
+        return currentDevice is not null && !currentDevice.IsDisposed && !texture.IsDisposed && ReferenceEquals(texture.Owner, currentDevice);
     }
 }

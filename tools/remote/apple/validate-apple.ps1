@@ -112,7 +112,7 @@ try {
         Progress 10 "Building backend-independent projects on Windows..."
         Run "dotnet" @(
             "build",
-            (Join-Path $repoRoot "Orbit3D.slnx"),
+            (Join-Path $repoRoot "engine" "Orbit3D.Engine.slnx"),
             "--configuration",
             $Configuration
         )
@@ -131,7 +131,13 @@ try {
     }
 
     Progress 34 "Creating source archive..."
-    & tar -czf $archive -C $stageRoot .
+    Push-Location $localRoot
+    try {
+        & tar -czf (Split-Path $archive -Leaf) -C $stageRoot .
+    }
+    finally {
+        Pop-Location
+    }
 
     if ($LASTEXITCODE -ne 0) {
         throw "tar failed with code $LASTEXITCODE."

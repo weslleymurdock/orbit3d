@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <!-- Runtimes MaciOS alinhados com a release 26.5.10318 -->
+    <MicrosoftiOSSdkPackageVersion>26.5.10318</MicrosoftiOSSdkPackageVersion>
+    <MicrosoftMacCatalystSdkPackageVersion>26.5.10318</MicrosoftMacCatalystSdkPackageVersion>
+    <MicrosofttvOSSdkPackageVersion>26.5.10318</MicrosofttvOSSdkPackageVersion>
+    <MicrosoftmacOSSdkPackageVersion>26.5.10318</MicrosoftmacOSSdkPackageVersion>
+
+    <!-- Runtimes Android e Windows da mesma release do .NET 10 -->
+    <MicrosoftAndroidSdkPackageVersion>35.0.0</MicrosoftAndroidSdkPackageVersion>
+    <MicrosoftWindowsDesktopAppPackageVersion>10.0.26100.0</MicrosoftWindowsDesktopAppPackageVersion>
+
+    <!-- Versão base do .NET MAUI -->
+    <MauiVersion>10.0.0</MauiVersion>
+  </PropertyGroup>
+</Project>

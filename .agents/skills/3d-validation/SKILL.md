@@ -1,3 +1,8 @@
+---
+name: 3d-validation
+description: Provides a validation checklist for Orbit3D 3D milestones, samples, renderers, platform support, resource lifecycle, and performance. Use when validating a feature, release candidate, or claimed platform support.
+---
+
 # 3D Validation Skill
 
 ## Use when

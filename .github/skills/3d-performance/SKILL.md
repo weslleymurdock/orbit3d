@@ -3,6 +3,11 @@ name: 3d-performance
 description: Guides performance analysis and optimization for 3D asset conversion, GPU uploads, render loops, caches, culling, batching, and frame timing. Use when profiling or optimizing rendering performance.
 ---
 
+---
+name: 3d-performance
+description: Guides performance analysis and optimization for 3D asset conversion, GPU uploads, render loops, caches, culling, batching, and frame timing. Use when profiling or optimizing rendering performance.
+---
+
 # 3D Performance Skill
 
 ## Use when

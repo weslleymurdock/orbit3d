@@ -1,3 +1,8 @@
+---
+name: assimp-asset-pipeline
+description: Guides Assimp.MAUI integration, model import, scene conversion, meshes, materials, textures, native resource disposal, and asset-pipeline tests. Use when implementing or validating Orbit3D asset importing.
+---
+
 # Assimp Asset Pipeline Skill
 
 ## Use when

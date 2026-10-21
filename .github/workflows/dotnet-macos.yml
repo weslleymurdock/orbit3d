@@ -19,6 +19,9 @@ jobs:
       uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '10.0.100'
+    - uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '26.3'
     - name: workload install
       run: dotnet workload install maui
     - name: Restore dependencies - engine

@@ -77,6 +77,11 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
+    - uses: maxim-lobanov/setup-xcode@v1
+      if: matrix.os == 'macos-26'
+      with:
+        xcode-version: '26.3'
+
     - name: Setup Apple Host and Diagnostics (iOS and MacCatalyst)
       if: matrix.platform == 'iOS' || matrix.platform == 'MacCatalyst'
       run: |

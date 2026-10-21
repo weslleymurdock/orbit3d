@@ -3,4 +3,5 @@
   <Project Path="../../engine/Orbit3D.Engine/Orbit3D.Engine.csproj" />
   <Project Path="../../engine/Orbit3D.Graphics.Silk/Orbit3D.Graphics.Silk.csproj" />
   <Project Path="SilkTriangleSample/SilkTriangleSample.csproj" />
+  <Project Path="SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj" />
 </Solution>

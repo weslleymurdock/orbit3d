@@ -1,4 +1,4 @@
-name: Build the Engine (Windows)
+name: Build the Engine and 3D Sample Validation
 
 on:
   push:
@@ -8,17 +8,17 @@ on:
 
 jobs:
   build:
-
+    name: Build Engine (Windows)
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
     - name: Setup .NET
-      uses: actions/setup-dotnet@v2
+      uses: actions/setup-dotnet@v6
       with:
-        dotnet-version: 9.0.x
+        dotnet-version: '10.0.100'
     - name: workload install
       run: dotnet workload install maui
     - name: Restore dependencies - engine
@@ -35,3 +35,128 @@ jobs:
       run: dotnet build engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj --no-restore -c Release
     - name: Run tests
       run: dotnet test engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj --no-restore
+
+  sample-3d-validation:
+    name: 3D Sample Validation (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows
+            os: windows-latest
+            target: net10.0-windows10.0.19041.0
+            workloads: maui-windows
+            enable-ui-tests: true
+          - platform: Android
+            os: ubuntu-latest
+            target: net10.0-android
+            workloads: android
+            enable-ui-tests: false
+          - platform: iOS
+            os: macos-15
+            target: net10.0-ios
+            workloads: ios
+            enable-ui-tests: true
+          - platform: MacCatalyst
+            os: macos-15
+            target: net10.0-maccatalyst
+            workloads: maccatalyst
+            enable-ui-tests: false
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - name: Setup Java JDK (Android)
+      if: matrix.platform == 'Android'
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Apple Host and Diagnostics (iOS and MacCatalyst)
+      if: matrix.platform == 'iOS' || matrix.platform == 'MacCatalyst'
+      run: |
+        echo "=== macOS and Xcode Diagnostics ==="
+        sw_vers
+        xcode-select -p
+        xcodebuild -version
+        echo "=== Available Simulators ==="
+        xcrun simctl list devices available
+        xcrun simctl list runtimes
+
+    - name: Setup .NET with Workload
+      uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: '10.0.100'
+        workloads: ${{ matrix.workloads }}
+
+    - name: Print Toolchain Diagnostics
+      shell: pwsh
+      run: |
+        Write-Host "=== .NET SDK Info ==="
+        dotnet --info
+
+    - name: Build 3D Solution in Release
+      shell: pwsh
+      run: |
+        dotnet build games/3D/Orbit3D.Games.slnx `
+          --configuration Release `
+          -f ${{ matrix.target }}
+
+    - name: Validate Application Build Artifact
+      shell: pwsh
+      run: |
+        .\scripts\validate-artifacts.ps1 -Platform ${{ matrix.platform }} -Configuration Release
+
+    - name: Setup Node.js and Appium
+      if: matrix.enable-ui-tests
+      uses: actions/setup-node@v7
+      with:
+        node-version: '20'
+
+    - name: Install Appium and Platform Driver
+      if: matrix.enable-ui-tests
+      shell: pwsh
+      run: |
+        npm install -g appium
+        if ('${{ matrix.platform }}' -eq 'Windows') {
+          appium driver install windows
+        } elseif ('${{ matrix.platform }}' -eq 'iOS') {
+          appium driver install xcuitest
+        } elseif ('${{ matrix.platform }}' -eq 'Android') {
+          appium driver install uiautomator2
+        } elseif ('${{ matrix.platform }}' -eq 'MacCatalyst') {
+          appium driver install mac2
+        }
+
+    - name: Start Appium Server
+      if: matrix.enable-ui-tests
+      shell: pwsh
+      run: |
+        Start-Process appium -ArgumentList "--address 127.0.0.1 --port 4723 --log appium.log" -NoNewWindow
+        Start-Sleep -Seconds 5
+
+    - name: Run UI Tests
+      if: matrix.enable-ui-tests
+      shell: pwsh
+      run: |
+        dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj `
+          --configuration Release `
+          --no-build `
+          --filter "Platform=${{ matrix.platform }}" `
+          --logger "trx;LogFileName=test-results-${{ matrix.platform }}.trx"
+
+    - name: Upload Test Results and Failure Diagnostics
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: diagnostics-${{ matrix.platform }}
+        path: |
+          artifacts/uitests/**
+          artifacts/installation/**
+          **/*.trx
+          appium.log

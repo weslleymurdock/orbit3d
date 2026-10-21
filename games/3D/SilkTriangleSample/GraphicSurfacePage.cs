@@ -16,10 +16,12 @@ public sealed class GraphicSurfacePage : ContentPage
     private readonly CameraOrbitController cameraController = new();
     private readonly SilkGraphicsSurface surface;
     private readonly Label statusLabel;
+    private readonly Label diagnosticsLabel;
     private readonly object renderLock = new();
     private bool importStarted;
     private bool firstRenderedFrameLogged;
     private long lastMetricsUpdateTimestamp;
+    private long totalRenderedFrames;
     private Scene3D? scene;
     private SilkGraphicsContext? graphicsContext;
     private IRenderDevice? device;
@@ -33,6 +35,7 @@ public sealed class GraphicSurfacePage : ContentPage
         this.modelImporter = modelImporter;
         surface = new SilkGraphicsSurface
         {
+            AutomationId = "SilkGraphicsSurface",
             HorizontalOptions = LayoutOptions.Fill,
             VerticalOptions = LayoutOptions.Fill
         };
@@ -50,8 +53,9 @@ public sealed class GraphicSurfacePage : ContentPage
 
         statusLabel = new Label
         {
+            AutomationId = "StatusLabel",
             Text = $"Importing {ModelAssetName}...",
-            Margin = new Thickness(12),
+            Margin = new Thickness(12, 6, 12, 2),
             FontSize = 14,
             HorizontalOptions = LayoutOptions.Fill,
             VerticalOptions = LayoutOptions.Center,
@@ -59,18 +63,33 @@ public sealed class GraphicSurfacePage : ContentPage
             Background = new SolidColorBrush(Color.FromArgb("#FF20242B"))
         };
 
+        diagnosticsLabel = new Label
+        {
+            AutomationId = "DiagnosticsLabel",
+            Text = "Phase=Importing;Context=Pending;Assets=Pending;DrawCalls=0;Frames=0",
+            Margin = new Thickness(12, 0, 12, 6),
+            FontSize = 11,
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Center,
+            TextColor = Color.FromArgb("#FFA0AAB8"),
+            Background = new SolidColorBrush(Color.FromArgb("#FF16181D"))
+        };
+
         var layout = new Grid
         {
             RowDefinitions =
             {
                 new RowDefinition { Height = GridLength.Star },
+                new RowDefinition { Height = GridLength.Auto },
                 new RowDefinition { Height = GridLength.Auto }
             }
         };
         Grid.SetRow(surface, 0);
         Grid.SetRow(statusLabel, 1);
+        Grid.SetRow(diagnosticsLabel, 2);
         layout.Children.Add(surface);
         layout.Children.Add(statusLabel);
+        layout.Children.Add(diagnosticsLabel);
         Content = layout;
     }
 
@@ -82,6 +101,7 @@ public sealed class GraphicSurfacePage : ContentPage
             return;
 
         importStarted = true;
+        SetDiagnosticsText("Phase=Importing;Context=Pending;Assets=Pending;DrawCalls=0;Frames=0");
         try
         {
             byte[] assetData;
@@ -143,11 +163,13 @@ public sealed class GraphicSurfacePage : ContentPage
             var renderQueue = runtimeScene.BuildRenderQueue(runtimeScene.MainCamera, surfaceWidth, surfaceHeight);
             LogDiagnostic($"Imported {ModelAssetName}: {model.Meshes.Count} mesh(es), {texture.Width}x{texture.Height} sidecar texture, {renderQueue.Count} queued item(s).");
             SetStatusText($"Loaded GLB + sidecar PNG | {renderQueue.Count} mesh(es)");
+            SetDiagnosticsText($"Phase=AssetsLoaded;Context={(graphicsContext != null ? "Ready" : "Pending")};Assets=Loaded;Meshes={model.Meshes.Count};DrawCalls=0;Frames=0");
         }
         catch (Exception exception)
         {
             Console.Error.WriteLine($"[SilkSample] Import failed: {exception}");
             SetStatusText($"Import failed: {exception.Message}");
+            SetDiagnosticsText($"Phase=Failed;Stage=AssetImport;Error={exception.GetType().Name}");
         }
     }
 
@@ -169,6 +191,7 @@ public sealed class GraphicSurfacePage : ContentPage
         renderer.SetPipeline(pipeline);
         renderer.Resize(surfaceWidth, surfaceHeight);
         SetStatusText("Runtime renderer ready");
+        SetDiagnosticsText($"Phase=ContextCreated;Context=Ready;Device=Silk;Assets={(scene != null ? "Loaded" : "Pending")};DrawCalls=0;Frames=0");
     }
 
     private void OnContextLost(object? sender, SilkGraphicsContextEventArgs args)
@@ -185,6 +208,7 @@ public sealed class GraphicSurfacePage : ContentPage
         pipeline = null;
         graphicsContext = null;
         SetStatusText("Graphics context lost; recreating GPU resources on next frame.");
+        SetDiagnosticsText("Phase=ContextLost;Context=Lost;Assets=Loaded;DrawCalls=0;Frames=0");
     }
 
     private void OnSurfaceResized(object? sender, SilkGraphicsSurfaceResizedEventArgs args)
@@ -270,6 +294,7 @@ public sealed class GraphicSurfacePage : ContentPage
         finally
         {
             renderer.EndFrame();
+            Interlocked.Increment(ref totalRenderedFrames);
             var metrics = ((SilkRenderer3D)renderer).Metrics;
             if (metrics.DrawCalls > 0 && !firstRenderedFrameLogged)
             {
@@ -289,6 +314,15 @@ public sealed class GraphicSurfacePage : ContentPage
         });
     }
 
+    private void SetDiagnosticsText(string text)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (!string.Equals(diagnosticsLabel.Text, text, StringComparison.Ordinal))
+                diagnosticsLabel.Text = text;
+        });
+    }
+
     private static void LogDiagnostic(string message)
     {
         var diagnostic = $"[SilkSample] {message}";
@@ -304,7 +338,9 @@ public sealed class GraphicSurfacePage : ContentPage
             return;
 
         Interlocked.Exchange(ref lastMetricsUpdateTimestamp, timestamp);
+        var frames = Interlocked.Read(ref totalRenderedFrames);
         SetStatusText($"FPS: {metrics.FramesPerSecond:0} | Frame: {metrics.FrameTime:0.0} ms | Draw calls: {metrics.DrawCalls} | Objects: {metrics.RenderedItems}");
+        SetDiagnosticsText($"Phase=Rendering;Context=Ready;Assets=Loaded;DrawCalls={metrics.DrawCalls};Triangles={metrics.TriangleCount};FPS={metrics.FramesPerSecond:0};Frames={frames}");
     }
 
     private static Camera3D CreateCamera() => new()

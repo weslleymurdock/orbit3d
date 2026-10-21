@@ -41,5 +41,9 @@ Validate every platform the selected renderer claims to support. Record unsuppor
 ## Regression
 3D changes must not silently remove or alter existing 2D rendering.
 
+## UI Automation and Testing Infrastructure
+For the 3D sample UI testing infrastructure, Appium driver setup, Page Objects, platform artifact packaging, and matrix CI configuration, see [UI Automation Guide](testing/ui-automation.md).
+For the Apple simulator testing policy, see [Apple Simulator UI Testing Guideline](testing/apple-simulator-ui-testing.md).
+
 ## Build
 Run focused builds/tests after each change and a complete relevant build before completing a milestone.

@@ -3,6 +3,11 @@ name: 3d-foundation
 description: Defines backend-independent 3D engine foundations, including scene graphs, transforms, cameras, meshes, materials, textures, lights, and renderer contracts. Use when designing or changing core 3D types and their deterministic tests.
 ---
 
+---
+name: 3d-foundation
+description: Defines backend-independent 3D engine foundations, including scene graphs, transforms, cameras, meshes, materials, textures, lights, and renderer contracts. Use when designing or changing core 3D types and their deterministic tests.
+---
+
 # 3D Foundation Skill
 
 ## Use when

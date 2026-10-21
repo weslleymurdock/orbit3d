@@ -1,3 +1,8 @@
+---
+name: gpu-rendering
+description: Guides backend-neutral GPU renderer abstractions, GPU resources, shaders, render passes, draw state, and graphics backend integration. Use when implementing or changing 3D rendering.
+---
+
 # GPU Rendering Skill
 
 ## Use when

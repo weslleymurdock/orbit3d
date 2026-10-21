@@ -1,3 +1,8 @@
+---
+name: maui-graphics-surface
+description: Guides native accelerated graphics surface integration with .NET MAUI on Android, iOS, MacCatalyst, and Windows, including lifecycle, resizing, suspension, recreation, and disposal. Use when implementing or debugging platform graphics surfaces.
+---
+
 # MAUI Graphics Surface Skill
 
 ## Use when

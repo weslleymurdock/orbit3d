@@ -54,12 +54,12 @@ jobs:
             workloads: android
             enable-ui-tests: false
           - platform: iOS
-            os: macos-15
+            os: macos-26
             target: net10.0-ios
             workloads: ios
             enable-ui-tests: true
           - platform: MacCatalyst
-            os: macos-15
+            os: macos-26
             target: net10.0-maccatalyst
             workloads: maccatalyst
             enable-ui-tests: false
@@ -92,8 +92,8 @@ jobs:
       uses: actions/setup-dotnet@v6
       with:
         dotnet-version: '10.0.100'
-        workloads: ${{ matrix.workloads }}
-
+    - name: Install workloads
+      run: dotnet workload install maui ${{ matrix.workloads }}
     - name: Print Toolchain Diagnostics
       shell: pwsh
       run: |

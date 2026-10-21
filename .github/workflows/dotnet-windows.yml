@@ -88,9 +88,55 @@ jobs:
         sw_vers
         xcode-select -p
         xcodebuild -version
+        sudo xcodebuild -runFirstLaunch 2>&1 || true
+        sudo xcodebuild -downloadPlatform iOS 2>&1 || true
         echo "=== Available Simulators ==="
         xcrun simctl list devices available
         xcrun simctl list runtimes
+
+    - name: Prepare iOS Simulator (iOS)
+      if: matrix.platform == 'iOS'
+      shell: pwsh
+      run: |
+        $simctlJson = xcrun simctl list -j | ConvertFrom-Json
+        $iosRuntimes = $simctlJson.runtimes | Where-Object { $_.isAvailable -and $_.platform -eq "iOS" }
+
+        Write-Host "=== Available iOS Simulator Runtimes ==="
+        $iosRuntimes | ForEach-Object { Write-Host " - $($_.name) ($($_.identifier), build $($_.buildversion))" }
+
+        if (-not $iosRuntimes) {
+          Write-Error "No available iOS simulator runtimes found on this macOS runner."
+          exit 1
+        }
+
+        # Select compatible iOS runtime for the active Xcode
+        $targetRuntime = $iosRuntimes | Select-Object -Last 1
+        Write-Host "Selected iOS Runtime: $($targetRuntime.name) ($($targetRuntime.identifier))"
+
+        $runtimeId = $targetRuntime.identifier
+        $devices = $simctlJson.devices.PSObject.Properties[$runtimeId]?.Value | Where-Object { $_.isAvailable -and $_.name -like "*iPhone*" }
+
+        $selectedUdid = $null
+        if ($devices) {
+          $preferred = $devices | Where-Object { $_.name -eq "iPhone 16" } | Select-Object -First 1
+          if (-not $preferred) { $preferred = $devices | Select-Object -First 1 }
+          $selectedUdid = $preferred.udid
+          Write-Host "Found available simulator: $($preferred.name) ($selectedUdid)"
+        } else {
+          Write-Host "Creating iPhone 16 simulator for runtime $runtimeId..."
+          $selectedUdid = xcrun simctl create "Orbit3D-iPhone16" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" $runtimeId
+          Write-Host "Created simulator with UDID: $selectedUdid"
+        }
+
+        Write-Host "Booting iOS Simulator $selectedUdid..."
+        xcrun simctl boot $selectedUdid 2>$null || true
+
+        Write-Host "Waiting for iOS Simulator to complete boot..."
+        xcrun simctl bootstatus $selectedUdid -b
+
+        Write-Host "Simulator successfully booted."
+        "ORBIT3D_IOS_SIMULATOR_UDID=$selectedUdid" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        Write-Host "Exported ORBIT3D_IOS_SIMULATOR_UDID=$selectedUdid to GITHUB_ENV."
 
     - name: Setup .NET with Workload
       uses: actions/setup-dotnet@v6
@@ -104,10 +150,10 @@ jobs:
         Write-Host "=== .NET SDK Info ==="
         dotnet --info
 
-    - name: Build 3D Solution in Release
+    - name: Build Sample Application in Release
       shell: pwsh
       run: |
-        dotnet build games/3D/Orbit3D.Games.slnx `
+        dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj `
           --configuration Release `
           -f ${{ matrix.target }}
 
@@ -141,13 +187,66 @@ jobs:
       if: matrix.enable-ui-tests
       shell: pwsh
       run: |
-        Start-Process appium -ArgumentList "--address 127.0.0.1 --port 4723 --log appium.log" -NoNewWindow
-        Start-Sleep -Seconds 5
+        if ($IsWindows) {
+          Start-Process -FilePath "cmd.exe" -ArgumentList "/c appium --address 127.0.0.1 --port 4723 --log appium.log" -WindowStyle Hidden
+        } else {
+          Start-Process -FilePath "appium" -ArgumentList "--address 127.0.0.1 --port 4723 --log appium.log"
+        }
+
+        $timeoutSeconds = 60
+        $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+        $ready = $false
+        Write-Host "Waiting for Appium server to respond on http://127.0.0.1:4723/status..."
+
+        while ((Get-Date) -lt $deadline) {
+            try {
+                $resp = Invoke-RestMethod -Uri "http://127.0.0.1:4723/status" -TimeoutSec 2 -ErrorAction Stop
+                if ($resp.value.ready -eq $true -or $resp.value) {
+                    $ready = $true
+                    Write-Host "Appium server is ready and responding."
+                    break
+                }
+            } catch {
+                Start-Sleep -Seconds 2
+            }
+        }
+
+        if (-not $ready) {
+            Write-Error "Appium server failed to become ready within $timeoutSeconds seconds."
+            if (Test-Path appium.log) {
+                Write-Host "=== Appium Server Log ==="
+                Get-Content appium.log
+            }
+            exit 1
+        }
+
+    - name: Build UI Test Runner
+      if: matrix.enable-ui-tests
+      shell: pwsh
+      run: |
+        dotnet build games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj `
+          --configuration Release
 
     - name: Run UI Tests
       if: matrix.enable-ui-tests
       shell: pwsh
       run: |
+        Write-Host "Verifying UI test discovery for Platform=${{ matrix.platform }}..."
+        $listOutput = dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj `
+          --configuration Release `
+          --no-build `
+          --filter "Platform=${{ matrix.platform }}" `
+          --list-tests
+
+        Write-Host ($listOutput | Out-String)
+
+        $discovered = $listOutput | Where-Object { $_ -match "^\s+SilkTriangleSample\.UITests\." }
+        if ($discovered.Count -eq 0) {
+          Write-Error "No UI tests discovered for Platform=${{ matrix.platform }}. Failing validation to prevent false positives."
+          exit 1
+        }
+        Write-Host "Discovered $($discovered.Count) tests for Platform=${{ matrix.platform }}."
+
         dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj `
           --configuration Release `
           --no-build `

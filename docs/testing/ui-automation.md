@@ -4,9 +4,26 @@ This document is the authoritative guide for the UI testing infrastructure of `S
 
 ---
 
-## 1. Purpose of `SilkTriangleSample.UITests`
+## 1. Purpose and Architecture of `SilkTriangleSample.UITests`
 
-`SilkTriangleSample.UITests` provides end-to-end UI automation and rendering verification for the Orbit3D MAUI 3D sample application across Android, iOS, Mac Catalyst, and Windows. It ensures that:
+`SilkTriangleSample.UITests` provides end-to-end UI automation and rendering verification for the Orbit3D MAUI 3D sample application across Android, iOS, Mac Catalyst, and Windows.
+
+### Architectural Separation
+- **Application Target:** Platform-specific TFMs (`net10.0-windows10.0.19041.0`, `net10.0-android`, `net10.0-ios`, `net10.0-maccatalyst`). The real MAUI application builds independently.
+- **UI Test Runner:** Pure desktop `.NET 10` (`net10.0`) test project using xUnit v3 and Appium.WebDriver. The test runner is **never** multi-targeted as mobile or Apple application packages, eliminating app-host (`UseAppHost`) and missing bundle identifier (`CFBundleIdentifier`) failures.
+- **Automation Transport:** Appium server (HTTP JSONWP / W3C WebDriver protocol on `http://127.0.0.1:4723/`).
+- **Platform Drivers:**
+  - Windows: `windows` driver
+  - iOS Simulator: `xcuitest` driver
+  - Android: `uiautomator2` driver
+  - Mac Catalyst: `mac2` driver
+- **CI Hosts:**
+  - Windows: `windows-latest`
+  - Android: `ubuntu-latest`
+  - iOS & Mac Catalyst: `macos-26`
+- **Artifact Validation Before Automation:** `scripts/validate-artifacts.ps1` validates genuine build artifacts on disk before any UI test or Appium session attempts to interact with the application.
+
+It ensures that:
 - The real MAUI application builds, installs, and launches on native targets and simulators.
 - Native graphics surfaces (`SilkGraphicsSurface`) initialize the real Silk graphics device and renderer (no mock renderers).
 - Real 3D assets (GLB models, sidecar textures) load into Orbit3D scenes and upload to GPU buffers.
@@ -95,8 +112,10 @@ Workloads required per platform:
 ## 5. Apple SDK and Xcode Compatibility Policy
 
 As defined in `docs/testing/apple-simulator-ui-testing.md`:
-- Apple workload and runtime packages must adhere strictly to `26.5.10318`.
-- Hosted macOS runners (`macos-15`) with Xcode 26.6 are supported.
+- Apple workload and runtime packages adhere strictly to `26.5.10318` pinned in `Directory.Build.props`.
+- Hosted macOS runners (`macos-26`) with pinned `xcode-version: '26.0'` are configured in CI.
+- **Xcode / Simulator Compatibility Requirement:** The Xcode SDK version (`26.0`), available simulator runtime, and selected simulator must be strictly compatible. Mismatched simulator runtimes prevent `actool` asset catalog compilation and simulator deployment.
+- CI runs `sudo xcodebuild -runFirstLaunch` and provisions the iOS simulator platform runtime (`sudo xcodebuild -downloadPlatform iOS`) before booting an available iPhone simulator.
 - Tests run against the iOS Simulator; physical device testing is a separate stage.
 - Version pins must not be altered locally or in CI to fit runner image mismatches.
 
@@ -108,17 +127,19 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
 - **Prerequisites:** Java 17+ (Temurin/OpenJDK), Android SDK Platform Tools (`adb`), Android emulator or physical device.
 - **Appium Driver:** `uiautomator2` (`appium driver install uiautomator2`).
 - **Artifact:** `com.companyname.silktrianglesample-Signed.apk`.
+- **UI Automation Status:** UI tests remain disabled (`enable-ui-tests: false`) until a reliable emulator execution environment is configured on hosted CI.
 
 ### 6.2 iOS Simulator
-- **Prerequisites:** macOS host, Xcode 26.6+, iOS Simulator runtime, Command Line Tools (`xcrun simctl`).
+- **Prerequisites:** macOS host, Xcode 26.0, compatible iOS Simulator runtime, Command Line Tools (`xcrun simctl`).
 - **Appium Driver:** `xcuitest` (`appium driver install xcuitest`).
 - **Artifact:** `SilkTriangleSample.app` (Simulator x64/arm64 bundle, not `.ipa`).
+- **Deterministic Simulator Selection:** CI deterministically queries `xcrun simctl list -j`, boots an available iPhone simulator, waits for `xcrun simctl bootstatus <UDID> -b`, and exports `ORBIT3D_IOS_SIMULATOR_UDID`.
 
 ### 6.3 Mac Catalyst
 - **Prerequisites:** macOS host, Xcode, Accessibility permissions.
 - **Appium Driver:** `mac2` (`appium driver install mac2`).
 - **Artifact:** `SilkTriangleSample.app` bundle.
-- **Known Limitation:** Mac Catalyst does not currently implement a native Silk graphics surface (`PlatformNotSupportedException`). Startup loads `MainPage`.
+- **Known Limitation & Policy:** Mac Catalyst does not currently implement a native Silk graphics surface (`PlatformNotSupportedException`). Startup loads `MainPage`. MacCatalyst UI automation remains disabled (`enable-ui-tests: false`) until a reliable driver and automation path is demonstrated.
 
 ### 6.4 Windows
 - **Prerequisites:** Windows 10/11 x64, Developer Mode enabled, Windows App SDK Runtime.
@@ -148,9 +169,15 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
    appium driver install mac2
    ```
 3. Start Appium server:
-   ```powershell
-   appium --address 127.0.0.1 --port 4723
-   ```
+   - **Windows Host Mechanism:** Because global npm executables on Windows are `.cmd`/`.ps1` wrappers rather than native Win32 binaries, launching Appium via `Start-Process appium` fails with `%1 is not a valid Win32 application`. Start via `cmd.exe /c` instead:
+     ```powershell
+     Start-Process -FilePath "cmd.exe" -ArgumentList "/c appium --address 127.0.0.1 --port 4723 --log appium.log" -WindowStyle Hidden
+     ```
+   - **macOS / Linux Host Mechanism:**
+     ```powershell
+     Start-Process -FilePath "appium" -ArgumentList "--address 127.0.0.1 --port 4723 --log appium.log"
+     ```
+   - **Bounded Readiness Check:** Never rely on fixed sleeps. Poll `http://127.0.0.1:4723/status` until ready (bounded timeout, e.g., 60 seconds).
 4. Configure environment variables (optional overrides):
    ```powershell
    $env:ORBIT3D_APPIUM_URL = "http://127.0.0.1:4723/"
@@ -163,10 +190,20 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
 ## 8. Application Build and Artifact Contract
 
 - **Release Configuration:** All tests and artifact validation require `Release` builds.
-- **Build Command:**
+- **Application Build Command:**
   ```powershell
-  dotnet build games/3D/Orbit3D.Games.slnx --configuration Release -f <TargetFramework>
+  dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f <TargetFramework>
   ```
+- **Desktop Test Runner Build Command:**
+  ```powershell
+  dotnet build games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj --configuration Release
+  ```
+- **Deterministic Discovery:** `AppArtifactLocator` resolves the exact binary output from `games/3D/SilkTriangleSample/bin/Release/<TargetFramework>/...`.
+- **Stale Binary Prevention:**
+  - Validates that the artifact file or `.app` bundle exists.
+  - Verifies file size > 0 and calculates SHA256 content hash.
+  - Throws `FileNotFoundException` with actionable rebuild instructions if missing or stale.
+  - Pre-installed or manually placed applications are never accepted silently.
 - **Deterministic Discovery:** `AppArtifactLocator` resolves the exact binary output from `games/3D/SilkTriangleSample/bin/Release/<TargetFramework>/...`.
 - **Stale Binary Prevention:**
   - Validates that the artifact file or `.app` bundle exists.
@@ -230,9 +267,12 @@ Requires running Appium server and target platform driver:
 **Windows:**
 ```powershell
 # 1. Build sample
-dotnet build games/3D/Orbit3D.Games.slnx --configuration Release -f net10.0-windows10.0.19041.0
+dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f net10.0-windows10.0.19041.0
 
-# 2. Run Windows UI tests
+# 2. Build test runner
+dotnet build games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj --configuration Release
+
+# 3. Run Windows UI tests
 dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj `
   --configuration Release `
   --no-build `
@@ -242,24 +282,22 @@ dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.cspro
 **Android:**
 ```powershell
 # 1. Build sample
-dotnet build games/3D/Orbit3D.Games.slnx --configuration Release -f net10.0-android
+dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f net10.0-android
 
-# 2. Run Android UI tests
+# 2. Run Android UI tests (when emulator is configured)
 dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj `
   --configuration Release `
-  --no-build `
   --filter "Platform=Android"
 ```
 
 **iOS:**
 ```bash
 # 1. Build sample
-dotnet build games/3D/Orbit3D.Games.slnx --configuration Release -f net10.0-ios
+dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f net10.0-ios
 
 # 2. Run iOS UI tests
 dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj \
   --configuration Release \
-  --no-build \
   --filter "Platform=iOS"
 ```
 
@@ -288,27 +326,29 @@ sample-3d-validation:
           workloads: android
           enable-ui-tests: false
         - platform: iOS
-          os: macos-15
+          os: macos-26
           target: net10.0-ios
           workloads: ios
           enable-ui-tests: true
         - platform: MacCatalyst
-          os: macos-15
+          os: macos-26
           target: net10.0-maccatalyst
           workloads: maccatalyst
           enable-ui-tests: false
 ```
 
-- **Matrix Workloads:** Set up using `with: workloads: ${{ matrix.workloads }}`.
-- **Solution Build:** `dotnet build games/3D/Orbit3D.Games.slnx --configuration Release -f ${{ matrix.target }}`.
 - **Step Sequence:**
-  1. Checkout
-  2. Platform prerequisites (Java, Xcode, simulators)
-  3. Setup .NET with matrix workload
-  4. Build solution in Release
-  5. Validate build artifact
-  6. Execute UI tests (if enabled for target)
-  7. Publish test results (.trx) and diagnostics artifacts (`if: always()`).
+  1. Checkout repository
+  2. Platform prerequisites (Java JDK for Android, Xcode 26.0 and first-launch/simulator setup for iOS/MacCatalyst)
+  3. Prepare iOS Simulator (deterministic query, boot, and UDID export to `GITHUB_ENV`)
+  4. Setup .NET with matrix workload (`dotnet workload install maui ${{ matrix.workloads }}`)
+  5. Build real sample application in Release (`dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj`)
+  6. Validate application build artifact (`validate-artifacts.ps1`)
+  7. Setup Node.js and Appium + Platform driver
+  8. Start Appium server with Windows-compatible process launch (`cmd.exe /c`) and poll status readiness check
+  9. Build UI test runner (`dotnet build games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj`)
+  10. Run UI tests with test discovery validation (`--filter "Platform=${{ matrix.platform }}"`)
+  11. Publish test results (.trx) and diagnostics artifacts (`if: always()`).
 
 ---
 

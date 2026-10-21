@@ -37,7 +37,7 @@ switch ($Platform) {
         }
 
         if (-not $resolvedExe) {
-            Write-Error "Windows artifact not found. Expected executable in '$tfmDir'. Build command: dotnet build games/3D/Orbit3D.Games.slnx --configuration $Configuration -f $targetTfm"
+            Write-Error "Windows artifact not found. Expected executable in '$tfmDir'. Build command: dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration $Configuration -f $targetTfm"
             exit 1
         }
 
@@ -96,7 +96,7 @@ switch ($Platform) {
         }
 
         if (-not $resolvedApk) {
-            Write-Error "Android APK not found in '$tfmDir'. Build command: dotnet build games/3D/Orbit3D.Games.slnx --configuration $Configuration -f $targetTfm"
+            Write-Error "Android APK not found in '$tfmDir'. Build command: dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration $Configuration -f $targetTfm"
             exit 1
         }
 
@@ -153,7 +153,7 @@ switch ($Platform) {
         }
 
         if (-not $resolvedApp) {
-            Write-Error "iOS Simulator .app bundle not found in '$tfmDir'. Build command: dotnet build games/3D/Orbit3D.Games.slnx --configuration $Configuration -f $targetTfm"
+            Write-Error "iOS Simulator .app bundle not found in '$tfmDir'. Build command: dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration $Configuration -f $targetTfm"
             exit 1
         }
 
@@ -191,6 +191,7 @@ switch ($Platform) {
         $tfmDir = Join-Path $binDir $targetTfm
         $appCandidates = @(
             (Join-Path $tfmDir "maccatalyst-x64\SilkTriangleSample.app"),
+            (Join-Path $tfmDir "maccatalyst-arm64\SilkTriangleSample.app"),
             (Join-Path $tfmDir "SilkTriangleSample.app")
         )
 
@@ -203,7 +204,7 @@ switch ($Platform) {
         }
 
         if (-not $resolvedApp) {
-            Write-Error "Mac Catalyst .app bundle not found in '$tfmDir'. Build command: dotnet build games/3D/Orbit3D.Games.slnx --configuration $Configuration -f $targetTfm"
+            Write-Error "Mac Catalyst .app bundle not found in '$tfmDir'. Build command: dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration $Configuration -f $targetTfm"
             exit 1
         }
 

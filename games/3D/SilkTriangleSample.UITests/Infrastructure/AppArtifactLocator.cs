@@ -86,7 +86,7 @@ public static class AppArtifactLocator
         {
             throw new FileNotFoundException(
                 $"No artifact path provided for {platform} ({config}). " +
-                $"Run: dotnet build games/3D/Orbit3D.Games.slnx --configuration {config} -f {tfm}");
+                $"Run: dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration {config} -f {tfm}");
         }
 
         if (expectedType == ".app")
@@ -95,7 +95,7 @@ public static class AppArtifactLocator
             {
                 throw new DirectoryNotFoundException(
                     $"Apple bundle directory not found at: '{path}'. " +
-                    $"Run: dotnet build games/3D/Orbit3D.Games.slnx --configuration {config} -f {tfm}");
+                    $"Run: dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration {config} -f {tfm}");
             }
 
             if (!path.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
@@ -110,7 +110,7 @@ public static class AppArtifactLocator
             {
                 throw new FileNotFoundException(
                     $"Artifact file not found at: '{path}'. " +
-                    $"Run: dotnet build games/3D/Orbit3D.Games.slnx --configuration {config} -f {tfm}");
+                    $"Run: dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration {config} -f {tfm}");
             }
 
             if (!path.EndsWith(expectedType, StringComparison.OrdinalIgnoreCase))

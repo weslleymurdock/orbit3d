@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <ApplicationId>com.remotecodehub.silktrianglesample.uitests</ApplicationId>   
     <!-- Opt out of Microsoft.Testing.Platform VSTest error on .NET 10 SDK -->
     <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
   </PropertyGroup>

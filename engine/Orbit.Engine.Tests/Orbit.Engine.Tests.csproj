@@ -5,7 +5,7 @@
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <UseMaui>true</UseMaui>
-
+    <ApplicationId>com.remotecodehub.orbit.engine.tests</ApplicationId>   
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 

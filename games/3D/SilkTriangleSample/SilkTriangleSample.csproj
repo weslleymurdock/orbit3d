@@ -32,7 +32,7 @@
 		<ApplicationTitle>SilkTriangleSample</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>com.companyname.silktrianglesample</ApplicationId>
+		<ApplicationId>com.remotecodehub.silktrianglesample</ApplicationId>
 
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>

@@ -211,14 +211,14 @@ public sealed class SilkRenderDevice : IRenderDevice
             var status = gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
             if (status != GLEnum.FramebufferComplete)
                 throw new InvalidOperationException($"OpenGL framebuffer creation failed with status {status}.");
-            gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            gl.BindFramebuffer(FramebufferTarget.Framebuffer, Context.DefaultFramebuffer);
             gl.BindTexture(TextureTarget.Texture2D, 0);
             gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
             return Register(new SilkRenderTarget(this, description, framebuffer, color, depth));
         }
         catch
         {
-            gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            gl.BindFramebuffer(FramebufferTarget.Framebuffer, Context.DefaultFramebuffer);
             gl.DeleteFramebuffer(framebuffer);
             gl.DeleteTexture(color);
             if (depth != 0)

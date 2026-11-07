@@ -85,7 +85,7 @@ public sealed class SilkRenderer3D : IRenderer3D
         device.EnsureContextCurrent();
         var gl = device.Context.Api;
         var target = renderTarget as SilkRenderDevice.SilkRenderTarget;
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, target?.Framebuffer ?? 0);
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, target?.Framebuffer ?? device.Context.DefaultFramebuffer);
         var activeViewport = target is null
             ? Viewport
             : new Viewport(0, 0, target.Description.Width, target.Description.Height);
@@ -109,7 +109,7 @@ public sealed class SilkRenderer3D : IRenderer3D
         var shouldPresent = activeTarget is null;
         activeTarget = null;
         frameActive = false;
-        device.Context.Api.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        device.Context.Api.BindFramebuffer(FramebufferTarget.Framebuffer, device.Context.DefaultFramebuffer);
         renderMetricsTracker.CompleteFrame();
         if (shouldPresent)
             device.Context.Present();

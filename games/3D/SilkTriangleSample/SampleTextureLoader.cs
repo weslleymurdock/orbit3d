@@ -56,9 +56,41 @@ internal static class SampleTextureLoader
 
         return Task.FromResult(CreateTexture(width, height, pixels));
     }
+#elif IOS || MACCATALYST
+    public static Task<Texture2D> LoadRgbaAsync(byte[] encodedImage)
+    {
+        ArgumentNullException.ThrowIfNull(encodedImage);
+        if (encodedImage.Length == 0)
+            throw new ArgumentException("Image data must not be empty.", nameof(encodedImage));
+
+        using var data = Foundation.NSData.FromArray(encodedImage);
+        using var image = UIKit.UIImage.LoadFromData(data)
+            ?? throw new InvalidOperationException("Apple platform could not decode the sample texture.");
+        using var cgImage = image.CGImage
+            ?? throw new InvalidOperationException("Apple decoded image does not contain a CGImage backing.");
+
+        var width = checked((int)cgImage.Width);
+        var height = checked((int)cgImage.Height);
+        var bytesPerRow = checked(width * 4);
+        var pixels = new byte[checked(height * bytesPerRow)];
+
+        using var colorSpace = CoreGraphics.CGColorSpace.CreateDeviceRGB();
+        using var context = new CoreGraphics.CGBitmapContext(
+            pixels,
+            width,
+            height,
+            8,
+            bytesPerRow,
+            colorSpace,
+            CoreGraphics.CGImageAlphaInfo.PremultipliedLast);
+        context.ClearRect(new CoreGraphics.CGRect(0, 0, width, height));
+        context.DrawImage(new CoreGraphics.CGRect(0, 0, width, height), cgImage);
+
+        return Task.FromResult(CreateTexture(width, height, pixels));
+    }
 #else
     public static Task<Texture2D> LoadRgbaAsync(byte[] encodedImage) =>
-        Task.FromException<Texture2D>(new PlatformNotSupportedException("The sample texture decoder is configured for Windows and Android."));
+        Task.FromException<Texture2D>(new PlatformNotSupportedException("The sample texture decoder is configured for Windows, Android, iOS, and Mac Catalyst."));
 #endif
 
     private static Texture2D CreateTexture(int width, int height, byte[] pixels) => new()

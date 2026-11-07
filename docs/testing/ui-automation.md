@@ -46,6 +46,7 @@ games/3D/SilkTriangleSample.UITests/
 │       └── AndroidGraphicSurfaceTests.cs
 ├── iOS/
 │   ├── Pages/
+│   │   ├── IosGraphicSurfacePage.cs
 │   │   └── IosMainPage.cs
 │   └── Tests/
 │       └── IosSampleAppTests.cs
@@ -78,11 +79,11 @@ games/3D/SilkTriangleSample.UITests/
 
 Each platform implements the Page Object pattern (`BasePage`), isolating UI automation selectors and interactions from test assertions:
 - **Stable Accessibility Identifiers:** Elements are targeted via `MobileBy.AccessibilityId(...)`, backed by `AutomationId` on MAUI `VisualElement` controls.
-- **GraphicSurfacePage Identifiers:**
+- **GraphicSurfacePage Identifiers (Android, iOS, and Windows):**
   - `SilkGraphicsSurface`: The native accelerated graphics surface.
   - `StatusLabel`: Human-readable status indicator.
-  - `DiagnosticsLabel`: Structured machine-readable diagnostic contract (`Phase=...;Context=...;Assets=...;DrawCalls=...;Triangles=...;FPS=...;Frames=...`).
-- **MainPage Identifiers (iOS and Mac Catalyst):**
+  - `DiagnosticsLabel`: Structured machine-readable diagnostic contract (`Phase=Rendering;Context=Ready;Device=Silk;Assets=Loaded;Meshes=1;Texture=1008x752;Items=1;DrawCalls=1;Triangles=20000;FPS=...;Frames=...;Viewport=...;Yaw=...;Pitch=...;Dist=...`).
+- **MainPage Identifiers (Mac Catalyst fallback):**
   - `HeadlineLabel`: Main page heading ("Hello, World!").
   - `SubHeadlineLabel`: Subheading description.
   - `CounterBtn`: Interactive button.
@@ -126,14 +127,18 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
 ### 6.1 Android
 - **Prerequisites:** Java 17+ (Temurin/OpenJDK), Android SDK Platform Tools (`adb`), Android emulator or physical device.
 - **Appium Driver:** `uiautomator2` (`appium driver install uiautomator2`).
-- **Artifact:** `com.companyname.silktrianglesample-Signed.apk`.
+- **Artifact:** `com.remotecodehub.silktrianglesample-Signed.apk`.
 - **UI Automation Status:** UI tests remain disabled (`enable-ui-tests: false`) until a reliable emulator execution environment is configured on hosted CI.
 
-### 6.2 iOS Simulator
-- **Prerequisites:** macOS host, Xcode 26.0, compatible iOS Simulator runtime, Command Line Tools (`xcrun simctl`).
-- **Appium Driver:** `xcuitest` (`appium driver install xcuitest`).
-- **Artifact:** `SilkTriangleSample.app` (Simulator x64/arm64 bundle, not `.ipa`).
-- **Deterministic Simulator Selection:** CI deterministically queries `xcrun simctl list -j`, boots an available iPhone simulator, waits for `xcrun simctl bootstatus <UDID> -b`, and exports `ORBIT3D_IOS_SIMULATOR_UDID`.
+### 6.2 iOS Physical Device (BrowserStack) & Simulator
+- **Primary Stage 08 Validation (BrowserStack Real Device):**
+  - **Artifact:** `SilkTriangleSample.ipa` (`ios-arm64`, signed with Apple Development / Ad-Hoc provisioning profile for `com.remotecodehub.silktrianglesample`), built by `.github/workflows/silk-triangle-sample-build.yml` and downloaded via `scripts/download-build-artifacts.ps1`.
+  - **Transport:** BrowserStack App Automate (`https://hub-cloud.browserstack.com/wd/hub/`) with `ORBIT3D_USE_BROWSERSTACK=true`, `ORBIT3D_BROWSERSTACK_APP=bs://<app-id>`, `BROWSERSTACK_USERNAME`, and `BROWSERSTACK_ACCESS_KEY`.
+- **Optional iOS Simulator Debugging:**
+  - **Prerequisites:** macOS host, Xcode 26.0, compatible iOS Simulator runtime, Command Line Tools (`xcrun simctl`).
+  - **Appium Driver:** `xcuitest` (`appium driver install xcuitest`).
+  - **Artifact:** `SilkTriangleSample.app` (Simulator x64/arm64 bundle).
+  - **Deterministic Simulator Selection:** Queries `xcrun simctl list -j`, boots an available iPhone simulator, waits for `xcrun simctl bootstatus <UDID> -b`, and exports `ORBIT3D_IOS_SIMULATOR_UDID`.
 
 ### 6.3 Mac Catalyst
 - **Prerequisites:** macOS host, Xcode, Accessibility permissions.
@@ -198,17 +203,12 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
   ```powershell
   dotnet build games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj --configuration Release
   ```
-- **Deterministic Discovery:** `AppArtifactLocator` resolves the exact binary output from `games/3D/SilkTriangleSample/bin/Release/<TargetFramework>/...`.
-- **Stale Binary Prevention:**
-  - Validates that the artifact file or `.app` bundle exists.
+- **Deterministic Discovery:** `AppArtifactLocator` resolves the exact binary output from `artifacts/ci-builds/` (downloaded CI artifacts) or `games/3D/SilkTriangleSample/bin/Release/<TargetFramework>/...`.
+- **Stale Binary Prevention & IPA Inspection:**
+  - Validates that the artifact file, `.ipa` archive, or `.app` bundle exists.
   - Verifies file size > 0 and calculates SHA256 content hash.
-  - Throws `FileNotFoundException` with actionable rebuild instructions if missing or stale.
-  - Pre-installed or manually placed applications are never accepted silently.
-- **Deterministic Discovery:** `AppArtifactLocator` resolves the exact binary output from `games/3D/SilkTriangleSample/bin/Release/<TargetFramework>/...`.
-- **Stale Binary Prevention:**
-  - Validates that the artifact file or `.app` bundle exists.
-  - Verifies file size > 0 and calculates SHA256 content hash.
-  - Throws `FileNotFoundException` with actionable rebuild instructions if missing or stale.
+  - For iOS `.ipa` files (`InspectIosIpaArchive`), verifies valid ZIP structure, `Payload/*.app/Info.plist`, `CFBundleIdentifier == com.remotecodehub.silktrianglesample`, non-empty Mach-O executable, and `embedded.mobileprovision`.
+  - Throws `FileNotFoundException` or `InvalidDataException` with actionable instructions if missing, corrupted, or stale.
   - Pre-installed or manually placed applications are never accepted silently.
 
 ---
@@ -229,18 +229,20 @@ Artifact validation is executed independently from UI tests via `scripts/validat
 ```powershell
 .\scripts\validate-artifacts.ps1 -Platform Android -Configuration Release
 ```
-- Resolves `com.companyname.silktrianglesample-Signed.apk`.
+- Resolves `com.remotecodehub.silktrianglesample-Signed.apk`.
 - Installs via `adb install -r <apkPath>`.
-- Verifies package via `adb shell pm list packages com.companyname.silktrianglesample`.
+- Verifies package via `adb shell pm list packages com.remotecodehub.silktrianglesample`.
 
-### 9.3 iOS Simulator
+### 9.3 iOS (Physical-Device `.ipa` or Simulator `.app`)
 ```powershell
+# Validate downloaded CI physical-device .ipa archive (works on Windows and macOS):
+.\scripts\validate-artifacts.ps1 -Platform iOS -Configuration Release -ArtifactDirectory "artifacts/ci-builds/silk-triangle-sample-ios"
+
+# Or validate Simulator .app bundle on macOS:
 .\scripts\validate-artifacts.ps1 -Platform iOS -Configuration Release -SimulatorId "<UDID>"
 ```
-- Resolves `SilkTriangleSample.app` bundle.
-- Boots simulator: `xcrun simctl boot <UDID>`.
-- Installs app: `xcrun simctl install <UDID> <appPath>`.
-- Confirms installation: `xcrun simctl get_app_container <UDID> com.companyname.silktrianglesample`.
+- When an `.ipa` is present (or `-ArtifactDirectory` points to a downloaded CI artifact), inspects the ZIP archive structure, verifies `Payload/SilkTriangleSample.app/Info.plist`, confirms `CFBundleIdentifier` matches `com.remotecodehub.silktrianglesample`, verifies the Mach-O executable and `embedded.mobileprovision`, and calculates SHA-256.
+- When validating a `.app` simulator bundle on macOS: boots simulator (`xcrun simctl boot <UDID>`), installs app (`xcrun simctl install <UDID> <appPath>`), and confirms installation (`xcrun simctl get_app_container <UDID> com.remotecodehub.silktrianglesample`).
 
 ### 9.4 Mac Catalyst
 ```powershell
@@ -303,8 +305,21 @@ dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.cspro
 
 ---
 
-## 11. GitHub Actions CI Matrix Integration
+## 11. GitHub Actions CI Workflows
 
+### 11.1 Dedicated Multiplatform Build Workflow (`.github/workflows/silk-triangle-sample-build.yml`)
+This workflow builds and publishes all four application targets (`Android`, `iOS`, `MacCatalyst`, `Windows`) in `Release` configuration (`fail-fast: false`) with 14-day artifact retention:
+- `silk-triangle-sample-android` (`net10.0-android`, `android-arm64` on `ubuntu-latest`)
+- `silk-triangle-sample-ios` (`net10.0-ios`, `ios-arm64` `.ipa` on `macos-26`, signed using `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_PROVISIONING_PROFILE_BASE64`)
+- `silk-triangle-sample-maccatalyst` (`net10.0-maccatalyst`, `maccatalyst-x64` `.app` on `macos-26`)
+- `silk-triangle-sample-windows` (`net10.0-windows10.0.19041.0`, `win-x64` on `windows-latest`)
+
+Download and verify artifacts locally on Windows using:
+```powershell
+.\scripts\download-build-artifacts.ps1 -RunId <run-id> -Platform all
+```
+
+### 11.2 CI Validation Matrix (`.github/workflows/dotnet-windows.yml`)
 Workflow `.github/workflows/dotnet-windows.yml` includes the `sample-3d-validation` matrix job:
 
 ```yaml

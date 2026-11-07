@@ -19,6 +19,9 @@ The Silk backend contains real OpenGL resource and indexed-draw commands. An And
 ## Stage 07 Windows
 The sample targets `net10.0-windows10.0.19041.0` on Windows hosts and registers the native WGL surface through `UseSilkGraphics()`. From `games/3D/SilkTriangleSample/`, run `dotnet run -f net10.0-windows10.0.19041.0`. A supported OpenGL 3.3 driver is required. The WinUI handler overlays the view with an owned, non-activating WGL popup because WinUI's composition surface occludes native child windows; it tracks the MAUI bounds and DPI, passes pointer hit-testing through, and destroys GPU/context resources on unload or host-window close. The sample packages the Toyota GLB and same-basename PNG from `assets/`; the asset-specific missing-UV fallback is documented in `asset-pipeline.md`. Model/texture rendering, resize and host-window teardown were visually/runtime validated on Windows.
 
+## Stage 08 iOS
+The sample targets `net10.0-ios` (`ApplicationId`: `com.remotecodehub.silktrianglesample`) and uses `SilkGraphicsSurfaceHandler` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0) with CoreGraphics sidecar texture decoding in `SampleTextureLoader`. Because local development runs on Windows 11 without local macOS/Xcode hardware, multiplatform artifacts are built via `.github/workflows/silk-triangle-sample-build.yml`, downloaded locally via `scripts/download-build-artifacts.ps1`, validated via `scripts/validate-artifacts.ps1`, and tested on physical iPhones via BrowserStack App Automate (`SilkTriangleSample.UITests`). Physical-device execution requires configuring Apple signing secrets (`APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE_BASE64`) in GitHub Actions.
+
 ## Public API
 Public engine APIs require XML documentation. Prefer stable Orbit concepts over third-party implementation details.
 

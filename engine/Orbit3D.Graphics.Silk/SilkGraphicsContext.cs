@@ -48,6 +48,12 @@ public sealed class SilkGraphicsContext
 
     internal GL Api { get; }
 
+    /// <summary>
+    /// Gets or sets the platform's default framebuffer handle (0 for window-system surfaces such as WGL/EGL,
+    /// or the CAEAGLLayer framebuffer handle on iOS).
+    /// </summary>
+    internal uint DefaultFramebuffer { get; set; }
+
     /// <summary>Gets whether the context uses OpenGL ES semantics.</summary>
     public bool IsOpenGles { get; }
 

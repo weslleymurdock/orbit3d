@@ -20,8 +20,17 @@ public abstract class PlatformTestFixture : IAsyncLifetime
     {
         try
         {
-            Manifest = AppArtifactLocator.ResolveArtifact(Platform, TestConfiguration.Configuration);
-            Driver = AppiumDriverFactory.CreateDriver(Platform, Manifest.ArtifactPath);
+            var requireIosIpa = Platform == PlatformKind.iOS && TestConfiguration.UseBrowserStack;
+            Manifest = AppArtifactLocator.ResolveArtifact(
+                Platform,
+                TestConfiguration.Configuration,
+                requireIosIpa: requireIosIpa);
+
+            var appTarget = TestConfiguration.UseBrowserStack && !string.IsNullOrWhiteSpace(TestConfiguration.BrowserStackAppUrl)
+                ? TestConfiguration.BrowserStackAppUrl!
+                : Manifest.ArtifactPath;
+
+            Driver = AppiumDriverFactory.CreateDriver(Platform, appTarget);
             return ValueTask.CompletedTask;
         }
         catch (Exception ex)
@@ -53,4 +62,3 @@ public abstract class PlatformTestFixture : IAsyncLifetime
         return ValueTask.CompletedTask;
     }
 }
-

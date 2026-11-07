@@ -12,6 +12,21 @@ public sealed record AppArtifactManifest(
     long FileSizeBytes,
     string ContentHash,
     DateTime BuildTimestampUtc,
-    string? CommitSha = null
+    string? CommitSha = null,
+    string? ApplicationId = null,
+    string? RuntimeIdentifier = null
 );
 
+/// <summary>
+/// Metadata extracted from a packaged iOS .ipa archive.
+/// </summary>
+public sealed record IosIpaPackageMetadata(
+    string IpaPath,
+    string AppBundleName,
+    string BundleIdentifier,
+    string? ExecutableName,
+    string? MinimumOsVersion,
+    bool HasProvisioningProfile,
+    long UncompressedExecutableSizeBytes,
+    string Sha256Hash
+);

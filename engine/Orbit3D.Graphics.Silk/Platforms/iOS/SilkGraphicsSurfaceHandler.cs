@@ -29,6 +29,7 @@ public sealed class SilkGraphicsSurfaceHandler : ViewHandler<SilkGraphicsSurface
     protected override void DisconnectHandler(SilkIosSurfaceView platformView)
     {
         platformView.ReleaseSurface();
+        platformView.UntrackSurface();
         base.DisconnectHandler(platformView);
     }
 }
@@ -38,6 +39,10 @@ public sealed class SilkGraphicsSurfaceHandler : ViewHandler<SilkGraphicsSurface
 /// </summary>
 public sealed class SilkIosSurfaceView : UIView
 {
+    private const string OpenGlesFrameworkPath = "/System/Library/Frameworks/OpenGLES.framework/OpenGLES";
+    private static readonly nint OpenGlesLibrary = NativeLibrary.Load(OpenGlesFrameworkPath);
+    private static readonly List<WeakReference<SilkIosSurfaceView>> Instances = [];
+
     [Export("layerClass")]
     public static ObjCRuntime.Class LayerClass() => new(typeof(CAEAGLLayer));
 
@@ -48,63 +53,158 @@ public sealed class SilkIosSurfaceView : UIView
     private CADisplayLink? displayLink;
     private SilkGraphicsContext? graphicsContext;
     private uint framebuffer;
-    private uint renderbuffer;
+    private uint colorRenderbuffer;
+    private uint depthRenderbuffer;
     private int pixelWidth;
     private int pixelHeight;
+    private int allocatedWidth;
+    private int allocatedHeight;
+    private bool isSuspended;
 
     public SilkIosSurfaceView(SilkGraphicsSurface surface)
     {
         this.surface = surface ?? throw new ArgumentNullException(nameof(surface));
         Opaque = true;
         ClipsToBounds = true;
+        UserInteractionEnabled = true;
+        MultipleTouchEnabled = true;
         ContentScaleFactor = UIScreen.MainScreen.Scale;
         BackgroundColor = UIColor.Clear;
         Layer.MasksToBounds = true;
         SetupNativeLayer();
+        Track(this);
         InitializeGraphicsContext();
-        LayoutSubviews();
     }
 
-    public void ReleaseSurface()
+    public override void MovedToWindow()
     {
-        displayLink?.Invalidate();
-        displayLink = null;
-
-        var context = graphicsContext;
-        if (context is not null)
+        base.MovedToWindow();
+        if (Window is null)
         {
-            surface.RaiseContextLost(context);
-            context.DisposeApi();
-            graphicsContext = null;
+            if (displayLink is not null)
+                displayLink.Paused = true;
+            return;
         }
 
-        if (nativeContext is not null)
+        if (!isSuspended)
         {
-            EAGLContext.SetCurrentContext(null);
-            nativeContext.Dispose();
-            nativeContext = null;
+            InitializeGraphicsContext();
+            if (displayLink is not null)
+                displayLink.Paused = false;
+            UpdateSurfaceDimensions();
         }
-
-        framebuffer = 0;
-        renderbuffer = 0;
     }
 
     public override void LayoutSubviews()
     {
         base.LayoutSubviews();
-        if (nativeLayer is not null)
+        if (nativeLayer is null)
+            return;
+
+        nativeLayer.Frame = Bounds;
+        var scale = ContentScaleFactor > 0 ? ContentScaleFactor : UIScreen.MainScreen.Scale;
+        if (scale <= 0)
+            scale = 1f;
+
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+            return;
+
+        var width = Math.Max(1, (int)Math.Round(Bounds.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(Bounds.Height * scale));
+        if (width != pixelWidth || height != pixelHeight || framebuffer == 0)
         {
-            nativeLayer.Frame = Bounds;
-            var scale = ContentScaleFactor > 0 ? ContentScaleFactor : 1f;
-            var width = Math.Max(1, (int)Math.Round(Bounds.Width * scale));
-            var height = Math.Max(1, (int)Math.Round(Bounds.Height * scale));
-            if (width != pixelWidth || height != pixelHeight)
+            pixelWidth = width;
+            pixelHeight = height;
+            UpdateSurfaceDimensions();
+        }
+    }
+
+    public void PauseRendering()
+    {
+        lock (syncLock)
+        {
+            if (displayLink is not null)
+                displayLink.Paused = true;
+
+            if (nativeContext is not null && graphicsContext is not null && !graphicsContext.IsApiDisposed)
             {
-                pixelWidth = width;
-                pixelHeight = height;
-                UpdateSurfaceDimensions();
+                if (EAGLContext.CurrentContext != nativeContext)
+                    EAGLContext.SetCurrentContext(nativeContext);
+                graphicsContext.Api.Finish();
             }
         }
+    }
+
+    public void SuspendSurface()
+    {
+        lock (syncLock)
+        {
+            isSuspended = true;
+            ReleaseSurfaceCore();
+        }
+    }
+
+    public void ResumeSurface()
+    {
+        lock (syncLock)
+        {
+            isSuspended = false;
+            if (Window is null)
+                return;
+
+            InitializeGraphicsContext();
+            UpdateSurfaceDimensions(force: true);
+            if (displayLink is not null)
+                displayLink.Paused = false;
+        }
+    }
+
+    public void ReleaseSurface()
+    {
+        lock (syncLock)
+        {
+            ReleaseSurfaceCore();
+        }
+    }
+
+    public void UntrackSurface()
+    {
+        lock (Instances)
+        {
+            Instances.RemoveAll(reference => !reference.TryGetTarget(out var view) || ReferenceEquals(view, this));
+        }
+    }
+
+    internal static void PauseAll() => ForEach(static view => view.PauseRendering());
+
+    internal static void SuspendAll() => ForEach(static view => view.SuspendSurface());
+
+    internal static void ResumeAll() => ForEach(static view => view.ResumeSurface());
+
+    private static void Track(SilkIosSurfaceView view)
+    {
+        lock (Instances)
+        {
+            Instances.RemoveAll(reference => !reference.TryGetTarget(out _));
+            Instances.Add(new WeakReference<SilkIosSurfaceView>(view));
+        }
+    }
+
+    private static void ForEach(Action<SilkIosSurfaceView> action)
+    {
+        SilkIosSurfaceView[] views;
+        lock (Instances)
+        {
+            views = Instances
+                .Select(reference => reference.TryGetTarget(out var view) ? view : null)
+                .Where(view => view is not null)
+                .Cast<SilkIosSurfaceView>()
+                .ToArray();
+            Instances.RemoveAll(reference => !reference.TryGetTarget(out _));
+        }
+
+        foreach (var view in views)
+            action(view);
     }
 
     private void SetupNativeLayer()
@@ -121,7 +221,7 @@ public sealed class SilkIosSurfaceView : UIView
     {
         lock (syncLock)
         {
-            if (nativeContext is not null)
+            if (isSuspended || nativeContext is not null)
                 return;
 
             var context = new EAGLContext(EAGLRenderingAPI.OpenGLES3);
@@ -133,63 +233,184 @@ public sealed class SilkIosSurfaceView : UIView
             graphicsContext = new SilkGraphicsContext(
                 GetProcAddress,
                 () => EAGLContext.CurrentContext == context,
-                () => context.PresentRenderBuffer((uint)RenderbufferTarget.Renderbuffer),
+                () =>
+                {
+                    if (colorRenderbuffer != 0 && graphicsContext is not null && !graphicsContext.IsApiDisposed)
+                        graphicsContext.Api.BindRenderbuffer(RenderbufferTarget.Renderbuffer, colorRenderbuffer);
+                    context.PresentRenderBuffer((uint)RenderbufferTarget.Renderbuffer);
+                },
                 isOpenGles: true);
 
             surface.RaiseContextCreated(graphicsContext);
-            UpdateSurfaceDimensions();
+            if (Bounds.Width > 0 && Bounds.Height > 0)
+                UpdateSurfaceDimensions(force: true);
 
             displayLink = CADisplayLink.Create(RenderFrameTick);
             displayLink.AddToRunLoop(NSRunLoop.Main, NSRunLoopMode.Common);
         }
     }
 
-    private static nint GetProcAddress(string name)
-    {
-        const string openGlesFramework = "/System/Library/Frameworks/OpenGLES.framework/OpenGLES";
-        var handle = NativeLibrary.Load(openGlesFramework);
-        return NativeLibrary.GetExport(handle, name);
-    }
+    private static nint GetProcAddress(string name) =>
+        NativeLibrary.TryGetExport(OpenGlesLibrary, name, out var export) ? export : 0;
 
     private void RenderFrameTick()
     {
-        if (nativeContext is null || graphicsContext is null)
+        lock (syncLock)
+        {
+            if (isSuspended || nativeContext is null || graphicsContext is null || !surface.IsVisible)
+                return;
+
+            if (Bounds.Width <= 0 || Bounds.Height <= 0)
+                return;
+
+            if (EAGLContext.CurrentContext != nativeContext)
+                EAGLContext.SetCurrentContext(nativeContext);
+
+            UpdateSurfaceDimensions();
+            if (framebuffer == 0 || allocatedWidth <= 0 || allocatedHeight <= 0)
+                return;
+
+            graphicsContext.DefaultFramebuffer = framebuffer;
+            surface.RaiseRenderFrame();
+        }
+    }
+
+    private void UpdateSurfaceDimensions(bool force = false)
+    {
+        if (isSuspended || nativeContext is null || graphicsContext is null || nativeLayer is null)
+            return;
+
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+            return;
+
+        var scale = ContentScaleFactor > 0 ? ContentScaleFactor : UIScreen.MainScreen.Scale;
+        if (scale <= 0)
+            scale = 1f;
+
+        var requestedWidth = Math.Max(1, (int)Math.Round(Bounds.Width * scale));
+        var requestedHeight = Math.Max(1, (int)Math.Round(Bounds.Height * scale));
+        pixelWidth = requestedWidth;
+        pixelHeight = requestedHeight;
+
+        if (!force && framebuffer != 0 && requestedWidth == allocatedWidth && requestedHeight == allocatedHeight)
             return;
 
         if (EAGLContext.CurrentContext != nativeContext)
             EAGLContext.SetCurrentContext(nativeContext);
 
-        UpdateSurfaceDimensions();
-        surface.RaiseRenderFrame();
-    }
+        nativeLayer.Frame = Bounds;
+        nativeLayer.ContentsScale = scale;
 
-    private void UpdateSurfaceDimensions()
-    {
-        if (nativeContext is null || graphicsContext is null || nativeLayer is null)
-            return;
-
-        var width = Math.Max(1, pixelWidth);
-        var height = Math.Max(1, pixelHeight);
-        if (width <= 0 || height <= 0)
-            return;
-
-        EAGLContext.SetCurrentContext(nativeContext);
         var gl = graphicsContext.Api;
         if (framebuffer == 0)
             framebuffer = gl.GenFramebuffer();
-        if (renderbuffer == 0)
-            renderbuffer = gl.GenRenderbuffer();
+        if (colorRenderbuffer == 0)
+            colorRenderbuffer = gl.GenRenderbuffer();
+        if (depthRenderbuffer == 0)
+            depthRenderbuffer = gl.GenRenderbuffer();
 
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
-        gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbuffer);
-        nativeContext.RenderBufferStorage((uint)RenderbufferTarget.Renderbuffer, nativeLayer);
-        gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, renderbuffer);
+        gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, colorRenderbuffer);
+        if (!nativeContext.RenderBufferStorage((uint)RenderbufferTarget.Renderbuffer, nativeLayer))
+            throw new InvalidOperationException("Failed to allocate CAEAGLLayer color renderbuffer storage on iOS.");
+
+        gl.FramebufferRenderbuffer(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            RenderbufferTarget.Renderbuffer,
+            colorRenderbuffer);
+
+        gl.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.Width, out var backingWidth);
+        gl.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.Height, out var backingHeight);
+        var actualWidth = backingWidth > 0 ? backingWidth : requestedWidth;
+        var actualHeight = backingHeight > 0 ? backingHeight : requestedHeight;
+
+        gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, depthRenderbuffer);
+        gl.RenderbufferStorage(
+            RenderbufferTarget.Renderbuffer,
+            InternalFormat.DepthComponent24,
+            (uint)actualWidth,
+            (uint)actualHeight);
+        gl.FramebufferRenderbuffer(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.DepthAttachment,
+            RenderbufferTarget.Renderbuffer,
+            depthRenderbuffer);
+
+        gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, colorRenderbuffer);
 
         var status = gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
         if (status != GLEnum.FramebufferComplete)
             throw new InvalidOperationException($"The iOS OpenGL ES framebuffer is incomplete ({status}).");
 
-        surface.RaiseSurfaceResized(width, height);
+        graphicsContext.DefaultFramebuffer = framebuffer;
+        allocatedWidth = actualWidth;
+        allocatedHeight = actualHeight;
+        surface.RaiseSurfaceResized(actualWidth, actualHeight);
+    }
+
+    private void ReleaseSurfaceCore()
+    {
+        if (displayLink is not null)
+        {
+            displayLink.Paused = true;
+            displayLink.Invalidate();
+            displayLink = null;
+        }
+
+        var context = graphicsContext;
+        var native = nativeContext;
+        graphicsContext = null;
+        nativeContext = null;
+        allocatedWidth = 0;
+        allocatedHeight = 0;
+
+        try
+        {
+            if (native is not null)
+            {
+                EAGLContext.SetCurrentContext(native);
+                if (context is not null && !context.IsApiDisposed)
+                {
+                    var gl = context.Api;
+                    gl.Finish();
+                    gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+                    gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
+                    if (framebuffer != 0)
+                    {
+                        gl.DeleteFramebuffer(framebuffer);
+                        framebuffer = 0;
+                    }
+                    if (colorRenderbuffer != 0)
+                    {
+                        gl.DeleteRenderbuffer(colorRenderbuffer);
+                        colorRenderbuffer = 0;
+                    }
+                    if (depthRenderbuffer != 0)
+                    {
+                        gl.DeleteRenderbuffer(depthRenderbuffer);
+                        depthRenderbuffer = 0;
+                    }
+                }
+
+                if (context is not null)
+                    surface.RaiseContextLost(context);
+            }
+        }
+        finally
+        {
+            context?.DisposeApi();
+            if (native is not null)
+            {
+                if (EAGLContext.CurrentContext == native)
+                    EAGLContext.SetCurrentContext(null);
+                native.Dispose();
+            }
+
+            framebuffer = 0;
+            colorRenderbuffer = 0;
+            depthRenderbuffer = 0;
+        }
     }
 }
 

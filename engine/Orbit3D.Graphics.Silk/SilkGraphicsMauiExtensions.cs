@@ -27,6 +27,13 @@ public static class SilkGraphicsMauiExtensions
         builder.UseOrbit3DEngine();
         builder.ConfigureMauiHandlers(handlers =>
             handlers.AddHandler<SilkGraphicsSurface, SilkGraphicsSurfaceHandler>());
+        builder.ConfigureLifecycleEvents(events => events.AddiOS(ios =>
+        {
+            ios.OnResignActivation(_ => SilkIosSurfaceView.PauseAll());
+            ios.DidEnterBackground(_ => SilkIosSurfaceView.SuspendAll());
+            ios.WillEnterForeground(_ => SilkIosSurfaceView.ResumeAll());
+            ios.OnActivated(_ => SilkIosSurfaceView.ResumeAll());
+        }));
         return builder;
 #elif WINDOWS
         builder.UseOrbit3DEngine();

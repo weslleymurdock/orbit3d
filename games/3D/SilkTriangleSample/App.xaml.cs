@@ -1,4 +1,4 @@
-﻿namespace SilkTriangleSample;
+namespace SilkTriangleSample;
 
 public partial class App : Application
 {
@@ -12,7 +12,7 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-#if ANDROID || WINDOWS
+#if ANDROID || IOS || WINDOWS
 	    return new Window(services.GetRequiredService<GraphicSurfacePage>());
 #else
         return new Window(new AppShell());

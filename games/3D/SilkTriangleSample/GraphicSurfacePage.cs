@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Numerics;
 using Orbit3D.Engine;
 using Orbit3D.Engine.Graphics;
@@ -29,6 +30,9 @@ public sealed class GraphicSurfacePage : ContentPage
     private IRenderPipeline? pipeline;
     private int surfaceWidth;
     private int surfaceHeight;
+    private int loadedMeshCount;
+    private int loadedTextureWidth;
+    private int loadedTextureHeight;
 
     public GraphicSurfacePage(IModelImporter modelImporter)
     {
@@ -158,12 +162,15 @@ public sealed class GraphicSurfacePage : ContentPage
             lock (renderLock)
             {
                 scene = runtimeScene;
+                loadedMeshCount = model.Meshes.Count;
+                loadedTextureWidth = texture.Width;
+                loadedTextureHeight = texture.Height;
             }
 
             var renderQueue = runtimeScene.BuildRenderQueue(runtimeScene.MainCamera, surfaceWidth, surfaceHeight);
             LogDiagnostic($"Imported {ModelAssetName}: {model.Meshes.Count} mesh(es), {texture.Width}x{texture.Height} sidecar texture, {renderQueue.Count} queued item(s).");
             SetStatusText($"Loaded GLB + sidecar PNG | {renderQueue.Count} mesh(es)");
-            SetDiagnosticsText($"Phase=AssetsLoaded;Context={(graphicsContext != null ? "Ready" : "Pending")};Assets=Loaded;Meshes={model.Meshes.Count};DrawCalls=0;Frames=0");
+            SetDiagnosticsText($"Phase=AssetsLoaded;Context={(graphicsContext != null ? "Ready" : "Pending")};Assets=Loaded;Meshes={model.Meshes.Count};Texture={texture.Width}x{texture.Height};DrawCalls=0;Frames=0");
         }
         catch (Exception exception)
         {
@@ -339,8 +346,12 @@ public sealed class GraphicSurfacePage : ContentPage
 
         Interlocked.Exchange(ref lastMetricsUpdateTimestamp, timestamp);
         var frames = Interlocked.Read(ref totalRenderedFrames);
-        SetStatusText($"FPS: {metrics.FramesPerSecond:0} | Frame: {metrics.FrameTime:0.0} ms | Draw calls: {metrics.DrawCalls} | Objects: {metrics.RenderedItems}");
-        SetDiagnosticsText($"Phase=Rendering;Context=Ready;Assets=Loaded;DrawCalls={metrics.DrawCalls};Triangles={metrics.TriangleCount};FPS={metrics.FramesPerSecond:0};Frames={frames}");
+        SetStatusText(string.Create(
+            CultureInfo.InvariantCulture,
+            $"FPS: {metrics.FramesPerSecond:0} | Frame: {metrics.FrameTime:0.0} ms | Draw calls: {metrics.DrawCalls} | Objects: {metrics.RenderedItems}"));
+        SetDiagnosticsText(string.Create(
+            CultureInfo.InvariantCulture,
+            $"Phase=Rendering;Context=Ready;Device=Silk;Assets=Loaded;Meshes={loadedMeshCount};Texture={loadedTextureWidth}x{loadedTextureHeight};Items={metrics.RenderedItems};DrawCalls={metrics.DrawCalls};Triangles={metrics.TriangleCount};FPS={metrics.FramesPerSecond:0};Frames={frames};Viewport={surfaceWidth}x{surfaceHeight};Yaw={cameraController.Yaw:F2};Pitch={cameraController.Pitch:F2};Dist={cameraController.Distance:F2}"));
     }
 
     private static Camera3D CreateCamera() => new()
@@ -383,6 +394,10 @@ public sealed class GraphicSurfacePage : ContentPage
         private float pitch;
         private float distance = 5.5f;
         private Vector3 target = Vector3.Zero;
+
+        public float Yaw => yaw;
+        public float Pitch => pitch;
+        public float Distance => distance;
 
         public void Attach(Camera3D camera, Vector3 target, float distance)
         {

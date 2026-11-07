@@ -138,6 +138,34 @@ switch ($Platform) {
     "iOS" {
         $targetTfm = "net10.0-ios"
         $tfmDir = Join-Path $binDir $targetTfm
+        $ciIpaDir = Join-Path $rootDir "artifacts\ci-builds\silk-triangle-sample-ios"
+
+        $ipaCandidates = @(
+            (Join-Path $ciIpaDir "SilkTriangleSample.ipa"),
+            (Join-Path $tfmDir "ios-arm64\publish\SilkTriangleSample.ipa"),
+            (Join-Path $tfmDir "ios-arm64\SilkTriangleSample.ipa")
+        )
+
+        $resolvedIpa = $null
+        foreach ($candidate in $ipaCandidates) {
+            if (Test-Path $candidate) {
+                $resolvedIpa = $candidate
+                break
+            }
+        }
+
+        if ($resolvedIpa -and -not $SimulatorId) {
+            $ipaItem = Get-Item $resolvedIpa
+            if ($ipaItem.Length -le 0) {
+                Write-Error "iOS IPA at '$resolvedIpa' is 0 bytes."
+                exit 1
+            }
+            $hash = (Get-FileHash -Path $resolvedIpa -Algorithm SHA256).Hash
+            Write-Host "Resolved iOS physical-device IPA: $resolvedIpa ($($ipaItem.Length) bytes, SHA256=$hash)" -ForegroundColor Green
+            Write-Host "iOS physical-device IPA validation SUCCESSFUL." -ForegroundColor Green
+            exit 0
+        }
+
         $appCandidates = @(
             (Join-Path $tfmDir "iossimulator-x64\SilkTriangleSample.app"),
             (Join-Path $tfmDir "iossimulator-arm64\SilkTriangleSample.app"),
@@ -153,7 +181,7 @@ switch ($Platform) {
         }
 
         if (-not $resolvedApp) {
-            Write-Error "iOS Simulator .app bundle not found in '$tfmDir'. Build command: dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration $Configuration -f $targetTfm"
+            Write-Error "iOS artifact (.ipa or .app bundle) not found in '$ciIpaDir' or '$tfmDir'."
             exit 1
         }
 

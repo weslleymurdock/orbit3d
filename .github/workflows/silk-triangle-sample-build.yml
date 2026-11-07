@@ -1,0 +1,435 @@
+name: Build SilkTriangleSample Multiplatform Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: 'Build configuration (Release or Debug)'
+        required: false
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'engine/**'
+      - 'games/3D/SilkTriangleSample/**'
+      - 'Directory.Build.props'
+      - 'global.json'
+      - '.github/workflows/silk-triangle-sample-build.yml'
+
+permissions:
+  contents: read
+
+env:
+  BUILD_CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+  EXPECTED_BUNDLE_ID: 'com.remotecodehub.silktrianglesample'
+  PROJECT_PATH: 'games/3D/SilkTriangleSample/SilkTriangleSample.csproj'
+
+jobs:
+  build-sample:
+    name: Build SilkTriangleSample (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Android
+            os: ubuntu-latest
+            tfm: net10.0-android
+            rid: android-arm64
+            workloads: android
+            artifact-name: silk-triangle-sample-android
+          - platform: iOS
+            os: macos-26
+            tfm: net10.0-ios
+            rid: ios-arm64
+            workloads: ios
+            artifact-name: silk-triangle-sample-ios
+          - platform: MacCatalyst
+            os: macos-26
+            tfm: net10.0-maccatalyst
+            rid: maccatalyst-x64
+            workloads: maccatalyst
+            artifact-name: silk-triangle-sample-maccatalyst
+          - platform: Windows
+            os: windows-latest
+            tfm: net10.0-windows10.0.19041.0
+            rid: win-x64
+            workloads: maui-windows
+            artifact-name: silk-triangle-sample-windows
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java JDK (Android)
+        if: matrix.platform == 'Android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Select Xcode 26.0 (Apple Targets)
+        if: matrix.platform == 'iOS' || matrix.platform == 'MacCatalyst'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.0'
+
+      - name: Apple Toolchain Diagnostics
+        if: matrix.platform == 'iOS' || matrix.platform == 'MacCatalyst'
+        shell: pwsh
+        run: |
+          Write-Host "=== macOS and Xcode Diagnostics ==="
+          sw_vers
+          xcode-select -p
+          xcodebuild -version
+          sudo xcodebuild -runFirstLaunch 2>&1 | Out-Host
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.100'
+
+      - name: Install MAUI Workloads
+        shell: pwsh
+        run: |
+          dotnet workload install maui ${{ matrix.workloads }}
+          dotnet --info
+
+      - name: Configure iOS Code Signing (Physical Device ios-arm64)
+        if: matrix.platform == 'iOS'
+        id: ios_signing
+        shell: pwsh
+        env:
+          CERT_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          PROVISION_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          CUSTOM_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          CUSTOM_PROVISION: ${{ secrets.APPLE_PROVISIONING_PROFILE_NAME }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $hasCert = -not [string]::IsNullOrWhiteSpace($env:CERT_BASE64)
+          $hasPass = -not [string]::IsNullOrWhiteSpace($env:CERT_PASSWORD)
+          $hasProfile = -not [string]::IsNullOrWhiteSpace($env:PROVISION_BASE64)
+
+          if (-not ($hasCert -and $hasPass -and $hasProfile)) {
+            Write-Warning "Apple physical-device signing secrets are not fully configured in this repository."
+            Write-Host "Required secrets: APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_PROVISIONING_PROFILE_BASE64"
+            "signing_configured=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+
+          $tempDir = Join-Path $env:RUNNER_TEMP "apple-signing"
+          New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+
+          $p12Path = Join-Path $tempDir "certificate.p12"
+          $profilePath = Join-Path $tempDir "profile.mobileprovision"
+          [IO.File]::WriteAllBytes($p12Path, [Convert]::FromBase64String($env:CERT_BASE64))
+          [IO.File]::WriteAllBytes($profilePath, [Convert]::FromBase64String($env:PROVISION_BASE64))
+
+          $keychainName = "orbit3d-build.keychain-db"
+          $keychainPassword = [Guid]::NewGuid().ToString("N")
+
+          security create-keychain -p $keychainPassword $keychainName
+          security set-keychain-settings -lut 21600 $keychainName
+          security unlock-keychain -p $keychainPassword $keychainName
+          security import $p12Path -P $env:CERT_PASSWORD -A -t cert -f pkcs12 -k $keychainName
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k $keychainPassword $keychainName
+          security list-keychains -d user -s $keychainName login.keychain-db
+          security default-keychain -s $keychainName
+
+          $profilesDir = Join-Path $HOME "Library/MobileDevice/Provisioning Profiles"
+          New-Item -ItemType Directory -Path $profilesDir -Force | Out-Null
+
+          $plistXml = security cms -D -i $profilePath
+          $plistDoc = [xml]$plistXml
+          $dictNodes = $plistDoc.plist.dict.ChildNodes
+          $profileUuid = $null
+          $profileName = $null
+          for ($i = 0; $i -lt $dictNodes.Count - 1; $i++) {
+            if ($dictNodes[$i].Name -eq "key") {
+              if ($dictNodes[$i].InnerText -eq "UUID") {
+                $profileUuid = $dictNodes[$i + 1].InnerText
+              } elseif ($dictNodes[$i].InnerText -eq "Name") {
+                $profileName = $dictNodes[$i + 1].InnerText
+              }
+            }
+          }
+
+          if (-not $profileUuid) {
+            Write-Error "Could not extract UUID from APPLE_PROVISIONING_PROFILE_BASE64."
+            exit 1
+          }
+
+          $installedProfile = Join-Path $profilesDir "$profileUuid.mobileprovision"
+          Copy-Item -Path $profilePath -Destination $installedProfile -Force
+
+          $identity = $env:CUSTOM_IDENTITY
+          if ([string]::IsNullOrWhiteSpace($identity)) {
+            $identities = security find-identity -v -p codesigning $keychainName
+            $match = [regex]::Match(($identities | Out-String), '"([^"]+)"')
+            if ($match.Success) {
+              $identity = $match.Groups[1].Value
+            }
+          }
+
+          $provisionSpecifier = if (-not [string]::IsNullOrWhiteSpace($env:CUSTOM_PROVISION)) { $env:CUSTOM_PROVISION } else { $profileUuid }
+
+          "signing_configured=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "signing_identity=$identity" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "provisioning_profile=$provisionSpecifier" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "provisioning_name=$profileName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build and Package Target Artifact
+        id: package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $outRoot = Join-Path $PWD "artifacts/staging/${{ matrix.artifact-name }}"
+          if (Test-Path $outRoot) { Remove-Item $outRoot -Recurse -Force }
+          New-Item -ItemType Directory -Path $outRoot -Force | Out-Null
+
+          $logFile = Join-Path $outRoot "build-${{ matrix.platform }}.log"
+          $binlogFile = Join-Path $outRoot "build-${{ matrix.platform }}.binlog"
+
+          switch ("${{ matrix.platform }}") {
+            "Android" {
+              dotnet publish $env:PROJECT_PATH `
+                -c $env:BUILD_CONFIGURATION `
+                -f ${{ matrix.tfm }} `
+                -p:TargetFrameworks=${{ matrix.tfm }} `
+                -p:AndroidPackageFormat=apk `
+                -bl:$binlogFile 2>&1 | Tee-Object -FilePath $logFile
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+              $binDir = "games/3D/SilkTriangleSample/bin/$env:BUILD_CONFIGURATION/${{ matrix.tfm }}"
+              $apk = Get-ChildItem -Path $binDir -Recurse -Filter "*-Signed.apk" | Select-Object -First 1
+              if (-not $apk) {
+                $apk = Get-ChildItem -Path $binDir -Recurse -Filter "*.apk" | Select-Object -First 1
+              }
+              if (-not $apk -or $apk.Length -eq 0) {
+                Write-Error "Android APK artifact was not produced in $binDir."
+                exit 1
+              }
+
+              $destFile = Join-Path $outRoot $apk.Name
+              Copy-Item -Path $apk.FullName -Destination $destFile -Force
+              "primary_file=$($apk.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+              "primary_path=$destFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            }
+
+            "Windows" {
+              dotnet publish $env:PROJECT_PATH `
+                -c $env:BUILD_CONFIGURATION `
+                -f ${{ matrix.tfm }} `
+                -p:TargetFrameworks=${{ matrix.tfm }} `
+                -r ${{ matrix.rid }} `
+                --self-contained false `
+                -bl:$binlogFile 2>&1 | Tee-Object -FilePath $logFile
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+              $binDir = "games/3D/SilkTriangleSample/bin/$env:BUILD_CONFIGURATION/${{ matrix.tfm }}"
+              $exe = Get-ChildItem -Path $binDir -Recurse -Filter "SilkTriangleSample.exe" | Select-Object -First 1
+              if (-not $exe -or $exe.Length -eq 0) {
+                Write-Error "Windows SilkTriangleSample.exe was not produced in $binDir."
+                exit 1
+              }
+
+              $exeDir = $exe.Directory.FullName
+              $appOutDir = Join-Path $outRoot "win-x64"
+              New-Item -ItemType Directory -Path $appOutDir -Force | Out-Null
+              Copy-Item -Path (Join-Path $exeDir "*") -Destination $appOutDir -Recurse -Force
+
+              $stagedExe = Join-Path $appOutDir "SilkTriangleSample.exe"
+              "primary_file=win-x64/SilkTriangleSample.exe" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+              "primary_path=$stagedExe" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            }
+
+            "MacCatalyst" {
+              dotnet build $env:PROJECT_PATH `
+                -c $env:BUILD_CONFIGURATION `
+                -f ${{ matrix.tfm }} `
+                -p:TargetFrameworks=${{ matrix.tfm }} `
+                -p:CreatePackage=false `
+                -bl:$binlogFile 2>&1 | Tee-Object -FilePath $logFile
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+              $binDir = "games/3D/SilkTriangleSample/bin/$env:BUILD_CONFIGURATION/${{ matrix.tfm }}"
+              $appBundle = Get-ChildItem -Path $binDir -Recurse -Directory -Filter "SilkTriangleSample.app" | Select-Object -First 1
+              if (-not $appBundle) {
+                Write-Error "MacCatalyst SilkTriangleSample.app bundle was not produced in $binDir."
+                exit 1
+              }
+
+              $zipPath = Join-Path $outRoot "SilkTriangleSample-maccatalyst.app.zip"
+              ditto -c -k --sequesterRsrc --keepParent $appBundle.FullName $zipPath
+              if (-not (Test-Path $zipPath) -or (Get-Item $zipPath).Length -eq 0) {
+                Write-Error "Failed to archive MacCatalyst .app bundle."
+                exit 1
+              }
+
+              "primary_file=SilkTriangleSample-maccatalyst.app.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+              "primary_path=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            }
+
+            "iOS" {
+              if ("${{ steps.ios_signing.outputs.signing_configured }}" -ne "true") {
+                Write-Host "Running unsigned ios-arm64 compilation verification before reporting missing signing secrets..."
+                dotnet build $env:PROJECT_PATH `
+                  -c $env:BUILD_CONFIGURATION `
+                  -f ${{ matrix.tfm }} `
+                  -p:TargetFrameworks=${{ matrix.tfm }} `
+                  -p:RuntimeIdentifier=ios-arm64 `
+                  -p:BuildIpa=false `
+                  -p:CodesignRequireProvisioningProfile=false `
+                  -p:EnableCodeSigning=false `
+                  -bl:$binlogFile 2>&1 | Tee-Object -FilePath $logFile
+
+                Write-Error "iOS physical-device IPA packaging is BLOCKED because Apple signing secrets (APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_PROVISIONING_PROFILE_BASE64) are not configured in GitHub Secrets. Refusing to publish an unsigned or simulator build as a physical-device IPA."
+                exit 1
+              }
+
+              $identityArg = "${{ steps.ios_signing.outputs.signing_identity }}"
+              $provisionArg = "${{ steps.ios_signing.outputs.provisioning_profile }}"
+
+              dotnet publish $env:PROJECT_PATH `
+                -c $env:BUILD_CONFIGURATION `
+                -f ${{ matrix.tfm }} `
+                -p:TargetFrameworks=${{ matrix.tfm }} `
+                -r ios-arm64 `
+                -p:RuntimeIdentifier=ios-arm64 `
+                -p:ArchiveOnBuild=true `
+                -p:BuildIpa=true `
+                -p:CodesignKey="$identityArg" `
+                -p:CodesignProvision="$provisionArg" `
+                -bl:$binlogFile 2>&1 | Tee-Object -FilePath $logFile
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+              $binDir = "games/3D/SilkTriangleSample/bin/$env:BUILD_CONFIGURATION/${{ matrix.tfm }}"
+              $ipa = Get-ChildItem -Path $binDir -Recurse -Filter "*.ipa" | Select-Object -First 1
+              if (-not $ipa -or $ipa.Length -eq 0) {
+                Write-Error "Signed iOS physical-device .ipa was not produced in $binDir."
+                exit 1
+              }
+
+              # Validate IPA contents, bundle identifier, and arm64 architecture
+              $inspectDir = Join-Path $env:RUNNER_TEMP "ipa-inspect"
+              if (Test-Path $inspectDir) { Remove-Item $inspectDir -Recurse -Force }
+              Expand-Archive -Path $ipa.FullName -DestinationPath $inspectDir -Force
+
+              $infoPlist = Get-ChildItem -Path (Join-Path $inspectDir "Payload") -Recurse -Filter "Info.plist" | Select-Object -First 1
+              if (-not $infoPlist) {
+                Write-Error "IPA does not contain Payload/<App>.app/Info.plist."
+                exit 1
+              }
+
+              $actualBundleId = (/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" $infoPlist.FullName).Trim()
+              $executableName = (/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" $infoPlist.FullName).Trim()
+              if ($actualBundleId -ne $env:EXPECTED_BUNDLE_ID) {
+                Write-Error "IPA CFBundleIdentifier '$actualBundleId' does not match expected '$env:EXPECTED_BUNDLE_ID'."
+                exit 1
+              }
+
+              $appDir = $infoPlist.Directory.FullName
+              $machoPath = Join-Path $appDir $executableName
+              $lipoOut = lipo -info $machoPath
+              Write-Host "Mach-O architecture info: $lipoOut"
+              if ($lipoOut -notmatch "arm64") {
+                Write-Error "IPA executable does not contain required physical-device arm64 architecture: $lipoOut"
+                exit 1
+              }
+
+              $destIpa = Join-Path $outRoot "SilkTriangleSample.ipa"
+              Copy-Item -Path $ipa.FullName -Destination $destIpa -Force
+              "primary_file=SilkTriangleSample.ipa" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+              "primary_path=$destIpa" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+              "ipa_arch=$lipoOut" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            }
+          }
+
+          $primaryPath = (Get-Content $env:GITHUB_OUTPUT | Where-Object { $_ -like "primary_path=*" } | Select-Object -Last 1).Split("=", 2)[1]
+          if (-not (Test-Path $primaryPath)) {
+            Write-Error "Expected output artifact missing at '$primaryPath'."
+            exit 1
+          }
+
+          $fileItem = Get-Item $primaryPath
+          $sha256 = (Get-FileHash -Path $primaryPath -Algorithm SHA256).Hash
+          "sha256=$sha256" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "size_bytes=$($fileItem.Length)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+          $metadata = [ordered]@{
+            platform             = "${{ matrix.platform }}"
+            targetFramework      = "${{ matrix.tfm }}"
+            runtimeIdentifier    = "${{ matrix.rid }}"
+            configuration        = $env:BUILD_CONFIGURATION
+            commitSha            = "$env:GITHUB_SHA"
+            applicationId        = $env:EXPECTED_BUNDLE_ID
+            applicationVersion   = "1.0 (1)"
+            artifactName         = "${{ matrix.artifact-name }}"
+            primaryFile          = "${{ steps.package.outputs.primary_file }}"
+            fileSizeBytes        = $fileItem.Length
+            sha256               = $sha256
+            timestampUtc         = (Get-Date).ToUniversalTime().ToString("o")
+          }
+          $metadata | ConvertTo-Json -Depth 4 | Out-File -FilePath (Join-Path $outRoot "artifact-metadata.json") -Encoding utf8
+
+      - name: Cleanup Temporary Signing Keychain (iOS)
+        if: always() && matrix.platform == 'iOS'
+        shell: pwsh
+        run: |
+          security delete-keychain "orbit3d-build.keychain-db" 2>$null
+          $tempDir = Join-Path $env:RUNNER_TEMP "apple-signing"
+          if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue }
+
+      - name: Upload Platform Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: artifacts/staging/${{ matrix.artifact-name }}/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write Target Build Summary
+        if: always()
+        shell: pwsh
+        run: |
+          $status = "${{ job.status }}"
+          $sha = "$env:GITHUB_SHA"
+          $config = "$env:BUILD_CONFIGURATION"
+          $tfm = "${{ matrix.tfm }}"
+          $rid = "${{ matrix.rid }}"
+          $artifact = "${{ matrix.artifact-name }}"
+          $file = "${{ steps.package.outputs.primary_file }}"
+          $hash = "${{ steps.package.outputs.sha256 }}"
+          $size = "${{ steps.package.outputs.size_bytes }}"
+
+          $lines = @(
+            "### SilkTriangleSample Build Summary — ${{ matrix.platform }}",
+            "",
+            "| Field | Value |",
+            "|---|---|",
+            "| **Platform** | `${{ matrix.platform }}` |",
+            "| **Status** | `$status` |",
+            "| **Commit SHA** | `$sha` |",
+            "| **Configuration** | `$config` |",
+            "| **Target Framework** | `$tfm` |",
+            "| **Runtime Identifier** | `$rid` |",
+            "| **Bundle / App ID** | `$env:EXPECTED_BUNDLE_ID` |",
+            "| **Artifact Name** | `$artifact` |",
+            "| **Primary Package** | `$file` |",
+            "| **Size (Bytes)** | `$size` |",
+            "| **SHA-256** | `$hash` |"
+          )
+
+          if ("${{ matrix.platform }}" -eq "iOS" -and "${{ steps.ios_signing.outputs.signing_configured }}" -ne "true") {
+            $lines += ""
+            $lines += "> **Blocker:** Physical-device iOS `.ipa` signing requires `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_PROVISIONING_PROFILE_BASE64` repository secrets."
+          }
+
+          $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

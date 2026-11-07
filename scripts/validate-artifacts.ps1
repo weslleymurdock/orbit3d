@@ -12,7 +12,7 @@ $ErrorActionPreference = "Stop"
 $rootDir = Resolve-Path "$PSScriptRoot\.."
 $sampleDir = Join-Path $rootDir "games\3D\SilkTriangleSample"
 $binDir = Join-Path $sampleDir "bin\$Configuration"
-$appId = "com.companyname.silktrianglesample"
+$appId = "com.remotecodehub.silktrianglesample"
 
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host " Orbit3D Artifact Validation: $Platform ($Configuration)" -ForegroundColor Cyan

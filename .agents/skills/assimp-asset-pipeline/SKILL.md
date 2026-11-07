@@ -6,7 +6,7 @@ description: Guides Assimp.MAUI integration, model import, scene conversion, mes
 # Assimp Asset Pipeline Skill
 
 ## Use when
-Integrating `Assimp.MAUI 6.0.5-rc4`, importing models or converting Assimp scenes into Orbit assets.
+Integrating `Assimp.MAUI 6.0.5-rc5`, importing models or converting Assimp scenes into Orbit assets.
 
 ## Required reading
 - `AGENTS.md`

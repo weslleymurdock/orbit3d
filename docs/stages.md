@@ -35,7 +35,7 @@ Stage 02 integrates Assimp.MAUI as the CPU-side asset importer and converts impo
 
 ### DoD
 
-- [x] Integrate the actual Assimp.MAUI 6.0.5-rc4 API.
+- [x] Integrate the actual Assimp.MAUI 6.0.5-rc5 API.
 - [x] Import model files through `AssimpModelImporter`.
 - [x] Support stream/file input through the existing importer boundary.
 - [x] Convert Assimp scenes and nodes into `Model3D`/`Node3D` data.

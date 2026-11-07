@@ -3,7 +3,7 @@
 ## Project goal
 Orbit3D is a fork of Orbit Engine focused on runtime 3D game support while preserving the existing .NET MAUI 2D engine. The first 3D release targets **0.1-rc1** and does not include an editor.
 
-The primary 3D asset importer is **Assimp.MAUI 6.0.5-rc4**:
+The primary 3D asset importer is **Assimp.MAUI 6.0.5-rc5**:
 https://github.com/weslleymurdock/Assimp.MAUI
 
 Assimp is an asset importer, not the Orbit renderer.
@@ -63,4 +63,4 @@ For every stage:
 4. Validate a real MAUI target when platform code changes.
 5. Report unsupported platforms explicitly.
 
-Read `docs/` and the relevant `.github/skills/*/SKILL.md` before implementing a 3D milestone.
+Read `docs/` and the relevant `.github/skills/*/SKILL.md` (or `.agents/skills/*/SKILL.md`) before implementing a 3D milestone.

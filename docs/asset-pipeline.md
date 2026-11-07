@@ -1,7 +1,7 @@
 # 3D Asset Pipeline
 
 ## Assimp role
-`Assimp.MAUI 6.0.5-rc4` is the runtime importer:
+`Assimp.MAUI 6.0.5-rc5` is the runtime importer:
 https://github.com/weslleymurdock/Assimp.MAUI
 
 Orbit public APIs must not expose Assimp wrapper/native types.

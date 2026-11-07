@@ -415,16 +415,16 @@ jobs:
             "| Field | Value |",
             "|---|---|",
             "| **Platform** | `${{ matrix.platform }}` |",
-            "| **Status** | `$status` |",
-            "| **Commit SHA** | `$sha` |",
-            "| **Configuration** | `$config` |",
-            "| **Target Framework** | `$tfm` |",
-            "| **Runtime Identifier** | `$rid` |",
-            "| **Bundle / App ID** | `$env:EXPECTED_BUNDLE_ID` |",
-            "| **Artifact Name** | `$artifact` |",
-            "| **Primary Package** | `$file` |",
-            "| **Size (Bytes)** | `$size` |",
-            "| **SHA-256** | `$hash` |"
+            "| **Status** | ` $status ` |",
+            "| **Commit SHA** | ` $sha ` |",
+            "| **Configuration** | ` $config ` |",
+            "| **Target Framework** | ` $tfm ` |",
+            "| **Runtime Identifier** | ` $rid ` |",
+            "| **Bundle / App ID** | `${{ env.EXPECTED_BUNDLE_ID }}` |",
+            "| **Artifact Name** | ` $artifact ` |",
+            "| **Primary Package** | ` $file ` |",
+            "| **Size (Bytes)** | ` $size ` |",
+            "| **SHA-256** | ` $hash ` |"
           )
 
           if ("${{ matrix.platform }}" -eq "iOS" -and "${{ steps.ios_signing.outputs.signing_configured }}" -ne "true") {

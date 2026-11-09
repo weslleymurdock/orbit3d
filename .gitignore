@@ -457,3 +457,5 @@ $RECYCLE.BIN/
 **/.local
 **/Library
 **/codesign*
+
+.env

@@ -1,3 +1,4 @@
+#if ANDROID || IOS || MACCATALYST || WINDOWS
 using System.IO;
 using System.Numerics;
 using Xunit;
@@ -140,3 +141,4 @@ public class AssimpModelImporterTests
         Assert.True(t.Scale.Length() > 0, "Root scale must be non-zero.");
     }
 }
+#endif

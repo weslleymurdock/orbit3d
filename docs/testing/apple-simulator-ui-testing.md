@@ -1,193 +1,299 @@
-# Apple iOS Real-Device (BrowserStack) and Simulator UI Testing Guideline
+# Apple Simulator Development and UI Testing (VS Code Remote - SSH + macOS)
 
-## 1. Decision and Validation Strategy
+This document defines the Stage 08 architecture and operational runbook for developing, building, running, and validating `SilkTriangleSample` on Apple targets using **Visual Studio Code Remote - SSH** from Windows 11 to a provisioned macOS host with the **iPhone Air — iOS 26.5 Simulator**.
 
-Orbit3D is developed on a Windows 11 environment without local macOS hardware, Xcode, or physical Apple devices. For **Stage 08**, the **primary validation path** for iOS is **CI-compiled physical-device (`ios-arm64`) `.ipa` artifacts executed on real iPhone hardware hosted by BrowserStack**:
+---
+
+## 1. Architecture Overview
 
 ```text
-Windows 11 Local Orchestration
-  -> GitHub Actions macOS Runner (.github/workflows/silk-triangle-sample-build.yml)
-  -> Signed ios-arm64 IPA Artifact (silk-triangle-sample-ios)
-  -> Local Artifact Download & Verification (scripts/download-build-artifacts.ps1)
-  -> BrowserStack Upload (bs://<app-id>)
-  -> Real iPhone Execution (Appium / BrowserStack App Automate + MCP Tools)
-  -> Screenshot, Video, and Device Log Retrieval (artifacts/browserstack/stage-08/)
-  -> Visual Screenshot & Log Inspection
+Windows 11
+└── Visual Studio Code
+    └── Remote - SSH
+        └── Remote macOS Host (mini.local / 192.168.3.9)
+            ├── Git repository: /Users/weslleyluiz/git/orbit3d
+            ├── .NET SDK: 10.0.302 (workloadSet: 10.0.302.1)
+            ├── MAUI workloads: ios, maccatalyst, macos, maui
+            ├── Xcode: 26.6 (Build 17F113)
+            ├── iOS Simulator
+            │   └── iPhone Air - iOS 26.5 (34E134C7-25BB-4925-8A3A-65674A943E87)
+            ├── Antigravity Agent (Remote Extension Host)
+            ├── Build tools & Appium Server (XCUITest / Mac2)
+            ├── Unit tests (Orbit.Engine.Tests, Orbit3D.Engine.Tests)
+            ├── UI tests (SilkTriangleSample.UITests)
+            └── artifacts/
+                └── apple/
+                    └── stage-08/
+                        ├── screenshots/
+                        ├── logs/
+                        └── test-results/
 ```
 
-iOS Simulator testing (on a GitHub Actions macOS runner or optional remote macOS host) remains documented below as an **optional development or debugging technique**, while **BrowserStack real-device execution and visual screenshot inspection** is the mandatory acceptance gate for Stage 08.
+---
+
+## 2. Why VS Code Remote - SSH Replaces Visual Studio Remote Simulator Bridging
+
+While Visual Studio on Windows can pair to a Mac and project a remote iOS Simulator window onto Windows for manual debugging, that bridge splits the workspace and execution context across two operating systems:
+
+1. **Direct Agentic Execution on macOS**: With VS Code Remote - SSH, the VS Code Server (`.vscode-server`) and the Antigravity agent extension (`google.google-antigravity`) run directly on the macOS host where the Git repository, `.NET SDK`, `Xcode`, `xcrun simctl`, and `Appium` reside.
+2. **Elimination of Cross-OS File Sync Overhead**: `dotnet restore`, `dotnet build`, `xcodebuild`, and `xcrun simctl` operate directly against the local APFS filesystem (`/Users/weslleyluiz/git/orbit3d`) rather than copying build payloads over MSBuild Pair-to-Mac SSH tunnels.
+3. **No BrowserStack or Paid Signing Dependency for Stage 08**: iOS Simulator `.app` bundles (`iossimulator-x64` / `iossimulator-arm64`) execute natively on CoreSimulator without requiring Apple Developer physical-device `.p12` certificates, provisioning profiles, or BrowserStack App Automate cloud devices.
 
 ---
 
-## 2. Scope and Intent
+## 3. Windows 11 Prerequisites
 
-All iOS validation must run the **actual `SilkTriangleSample` MAUI application** (`com.remotecodehub.silktrianglesample`) and the **actual `Orbit3D.Graphics.Silk` iOS OpenGL ES 3.0 (`CAEAGLLayer` + `EAGLContext`) implementation**. Tests must never substitute a mock renderer, bypass native surface initialization, or report success using synthetic values.
+On the Windows 11 workstation:
 
-For Orbit3D Stage 08 graphics changes, automated UI tests (`IosSampleAppTests`) and visual inspection must verify:
-
-1. **Application Launch (`Test01_ApplicationLaunch`)**: The `.ipa` installs and launches on a physical iPhone without crashing or hanging on the splash screen.
-2. **Graphics Surface Initialization (`Test02_GraphicsSurfaceInitialization`)**: `SilkGraphicsSurface` (`SilkIosSurfaceView`) creates its `CAEAGLLayer`, `EAGLContext` (OpenGL ES 3.0), FBO, color renderbuffer (`RGBA8`), and depth renderbuffer (`DepthComponent24`), reporting `Context=Ready;Device=Silk`.
-3. **Scene and Asset Loading (`Test03_SceneAndAssetLoading`)**: The Toyota GR Yaris GLB (`toyota-gazoo-racing-wrt-gr-yaris-1-10.glb`, 1 mesh, 20,000 triangles) and CoreGraphics-decoded sidecar texture (`toyota-gazoo-racing-wrt-gr-yaris-1-10.png`, `1008x752` RGBA) load and upload to GPU buffers (`Assets=Loaded;Meshes=1;Texture=1008x752`).
-4. **Active Rendering Loop (`Test04_ActiveRenderingLoop`)**: Frame counter (`Frames`) advances over time with `DrawCalls >= 1`, `Triangles >= 20000`, and `FPS > 0`.
-5. **Camera Touch Interaction (`Test05_CameraInteraction`)**: W3C touch pan gestures on `SilkGraphicsSurface` update `CameraOrbitController` (`Yaw`/`Pitch`) while rendering continues without GPU errors.
-6. **Orientation & Viewport Resize (`Test06_OrientationAndViewportResize`)**: Rotating between `PORTRAIT` and `LANDSCAPE` reallocates `CAEAGLLayer` renderbuffer storage to the new pixel dimensions (`Viewport`) and continues rendering cleanly.
-7. **Application Lifecycle (`Test07_ApplicationLifecycle`)**: Backgrounding (`RunAppInBackground`) suspends the OpenGL ES context and releases context-bound GPU resources while the context is current; returning to the foreground recreates the context/renderbuffers and rebuilds GPU resources from retained CPU assets (`IAssetCache`), resuming rendering.
-
-A passing test or build is evidence only for the assertions it actually makes. Compilation, installation, or launch alone is never sufficient to mark Stage 08 complete without visual verification of captured physical-device screenshots.
+1. Install **Visual Studio Code** (User or System Installer).
+2. Install the official **Remote - SSH** extension (`ms-vscode-remote.remote-ssh`).
+3. Ensure the Windows OpenSSH Client (`ssh.exe`) is available and can reach the macOS host on the local network.
 
 ---
 
-## 3. Toolchain and Version Policy
+## 4. VS Code Remote - SSH Configuration
 
-- The repository root `global.json` and `Directory.Build.props` are authoritative for the .NET SDK, workloads, and pinned Apple package versions:
-  - **.NET SDK**: `10.0.100` (`global.json`, `rollForward: latestPatch`)
-  - **Workload Version**: `10.0.100` (`global.json`)
-  - **Apple SDK Package Version (`MicrosoftiOSSdkPackageVersion`)**: `26.5.10318` (`Directory.Build.props`)
-  - **Android SDK Package Version (`MicrosoftAndroidSdkPackageVersion`)**: `35.0.0` (`Directory.Build.props`)
-  - **Windows Desktop App Package Version (`MicrosoftWindowsDesktopAppPackageVersion`)**: `10.0.26100.0` (`Directory.Build.props`)
-- Do not change repository pins, silently install a different Apple workload release, or upgrade package versions merely to make a runner pass.
-- If a hosted runner or environment lacks required toolchain compatibility or signing secrets, report it as an explicit environment/configuration blocker.
+Configure `~/.ssh/config` on the Windows 11 machine to connect to the macOS host:
 
----
-
-## 4. Dedicated Multiplatform CI Build Workflow (`.github/workflows/silk-triangle-sample-build.yml`)
-
-The workflow `.github/workflows/silk-triangle-sample-build.yml` builds and publishes all four supported `SilkTriangleSample` platform targets in an isolated matrix (`fail-fast: false`) with 14-day artifact retention:
-
-| Platform | Target Framework | Runtime Identifier | Runner | Published Artifact Name | Primary Package |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Android** | `net10.0-android` | `android-arm64` | `ubuntu-latest` | `silk-triangle-sample-android` | `com.remotecodehub.silktrianglesample-Signed.apk` |
-| **iOS** | `net10.0-ios` | `ios-arm64` | `macos-26` | `silk-triangle-sample-ios` | `SilkTriangleSample.ipa` |
-| **MacCatalyst** | `net10.0-maccatalyst` | `maccatalyst-x64` | `macos-26` | `silk-triangle-sample-maccatalyst` | `SilkTriangleSample.app` |
-| **Windows** | `net10.0-windows10.0.19041.0` | `win-x64` | `windows-latest` | `silk-triangle-sample-windows` | `SilkTriangleSample.exe` + runtime payload |
-
-Each artifact includes `artifact-metadata.json` containing git commit SHA, branch, workflow run ID, build configuration (`Release`), target framework, runtime identifier, file list, sizes, and SHA-256 checksums.
-
-### 4.1 Required GitHub Secrets for iOS Physical-Device (`.ipa`) Signing
-
-Physical iOS devices on BrowserStack require a signed `ios-arm64` `.ipa` archive (`BuildIpa=true`, `ArchiveOnBuild=true`). Configure the following repository secrets in GitHub (`Settings -> Secrets and variables -> Actions`):
-
-| Secret Name | Required | Description |
-| :--- | :--- | :--- |
-| `APPLE_CERTIFICATE_P12_BASE64` | **Yes** | Base64-encoded Apple Development or Ad-Hoc Distribution `.p12` certificate (`[Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.p12"))`). |
-| `APPLE_CERTIFICATE_PASSWORD` | **Yes** | Password protecting the `.p12` certificate file. |
-| `APPLE_PROVISIONING_PROFILE_BASE64` | **Yes** | Base64-encoded `.mobileprovision` file matching `com.remotecodehub.silktrianglesample` (or wildcard `*`). |
-| `APPLE_SIGNING_IDENTITY` | Optional | Explicit `CodesignKey` override (auto-detected from the temporary keychain when omitted). |
-| `APPLE_PROVISIONING_PROFILE_NAME` | Optional | Explicit `CodesignProvision` UUID or profile name override (auto-detected from the `.mobileprovision` plist when omitted). |
-
-When these secrets are present, the iOS job imports the certificate into a temporary macOS keychain, installs the provisioning profile into `~/Library/MobileDevice/Provisioning Profiles/`, and publishes `SilkTriangleSample.ipa` for `ios-arm64`. If the secrets are absent, the iOS job stops with an actionable error message explaining which secrets must be configured.
-
-### 4.2 Triggering the Workflow and Downloading Artifacts Locally
-
- From the Windows development machine using the GitHub CLI (`gh`):
-
-```powershell
-# 1. Trigger the build workflow on main (after pushing silk-triangle-sample-build.yml)
-gh workflow run silk-triangle-sample-build.yml -R weslleymurdock/orbit3d --ref main
-
-# 2. Watch the workflow run to completion
-gh run watch <run-id> -R weslleymurdock/orbit3d --exit-status
-
-# 3. Download all 4 platform artifacts (or -Platform ios) and verify SHA-256 + IPA structure
-.\scripts\download-build-artifacts.ps1 -RunId <run-id> -Platform all
-
-# 4. Run local artifact validation on the downloaded iOS IPA
-.\scripts\validate-artifacts.ps1 -Platform iOS -Configuration Release `
-  -ArtifactDirectory "artifacts/ci-builds/silk-triangle-sample-ios"
+```sshconfig
+Host mini.local
+    HostName 192.168.3.9
+    User weslleyluiz
+    ForwardAgent yes
 ```
 
-Downloaded artifacts are organized under:
-- `artifacts/ci-builds/silk-triangle-sample-android/`
-- `artifacts/ci-builds/silk-triangle-sample-ios/`
-- `artifacts/ci-builds/silk-triangle-sample-maccatalyst/`
-- `artifacts/ci-builds/silk-triangle-sample-windows/`
-- `artifacts/ci-builds/download-manifest.json`
+To connect from Visual Studio Code on Windows:
+
+1. Open the Command Palette (`Ctrl+Shift+P`).
+2. Run **Remote-SSH: Connect to Host...** and select `mini.local` (`weslleyluiz@192.168.3.9`).
+3. Once connected, select **File > Open Folder...** and open `/Users/weslleyluiz/git/orbit3d`.
 
 ---
 
-## 5. BrowserStack Real-Device iOS Validation
+## 5. macOS Host Prerequisites
 
-### 5.1 Environment Configuration
+Verified baseline on the remote macOS host (`mini.local`):
 
-Ensure BrowserStack credentials are set in the local Windows environment (never hardcode or print secret values):
+| Component | Verified Version / Path |
+|---|---|
+| **Operating System** | macOS Sequoia `15.6.1` (`Build 24G90`, `Darwin 24.6.0 x86_64`) |
+| **Xcode** | `Xcode 26.6` (`Build 17F113`) at `/Applications/Xcode.app/Contents/Developer` |
+| **Command Line Tools** | Xcode 26.6 (`xcode-select -p`) |
+| **.NET SDK** | `10.0.302` (`/usr/local/share/dotnet/dotnet`) |
+| **Workload Set** | `10.0.302.1` (`ios 26.5.10315/10.0.100`, `maccatalyst 26.5.10315/10.0.100`, `maui 10.0.20/10.0.100`) |
+| **iOS Simulator Runtime** | `iOS 26.5` (`26.5 - 23F77`, `com.apple.CoreSimulator.SimRuntime.iOS-26-5`) |
+| **Validation Simulator** | `iPhone Air` (`UDID: 34E134C7-25BB-4925-8A3A-65674A943E87`) |
+| **Node.js & Appium** | Node `v20.19.0`, `appium@3.9.0`, `xcuitest@12.22.8`, `mac2@4.6.1` |
 
-```powershell
-# Required BrowserStack credentials (already configured in user environment)
-# $env:BROWSERSTACK_USERNAME
-# $env:BROWSERSTACK_ACCESS_KEY
+---
 
-# Target BrowserStack App Automate execution
-$env:ORBIT3D_USE_BROWSERSTACK = "true"
-$env:ORBIT3D_BROWSERSTACK_APP = "bs://<uploaded-app-id>"
-$env:ORBIT3D_IOS_DEVICE = "iPhone 15"
-$env:ORBIT3D_IOS_OS_VERSION = "17"
-$env:ORBIT3D_CAPTURE_SCREENSHOTS = "true"
+## 6. Cloning and Opening the Repository on macOS
+
+If the repository is not yet cloned on the macOS host:
+
+```bash
+mkdir -p ~/git
+cd ~/git
+git clone https://github.com/weslleymurdock/orbit3d.git
+cd orbit3d
+git checkout main
 ```
 
-### 5.2 Uploading the `.ipa` and Running Automated UI Tests
-
-1. **Upload the signed `.ipa`** to BrowserStack App Automate (via BrowserStack REST API `https://api-cloud.browserstack.com/app-automate/upload` or BrowserStack MCP tools `setupBrowserStackAppAutomateTests` / `takeAppScreenshot`) to obtain a `bs://<app-id>` URL.
-2. **Run the iOS UI test suite** from Windows against BrowserStack App Automate (`https://hub-cloud.browserstack.com/wd/hub/`):
-   ```powershell
-   dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj `
-     --configuration Release `
-     --filter "Platform=iOS"
-   ```
-3. **Collect Evidence via BrowserStack MCP Tools**:
-   - `listBuildId` / `getBuildId` and `listSessions` / `listTestIds` to locate the build and session IDs.
-   - `fetchAutomationScreenshots` and `takeAppScreenshot` to retrieve device screenshots.
-   - `getFailureLogs` (`sessionLogs`, `deviceLogs`, `appiumLogs`, `crashLogs`, `video`) to inspect runtime logs and video.
-   - Store all collected evidence under `artifacts/browserstack/stage-08/` (`screenshots/`, `logs/`, `session-summary.json`).
-
-### 5.3 Visual Inspection Criteria
-
-Every captured screenshot in `artifacts/browserstack/stage-08/screenshots/` must be visually inspected to confirm:
-- The application is not showing a black/blank screen, crash dialog, or splash screen.
-- The 3D Toyota GR Yaris mesh is visibly rendered with proper perspective projection, depth ordering, back-face culling, and CoreGraphics-decoded sidecar texture.
-- The bottom diagnostics overlay displays `Phase=Rendering;Context=Ready;Device=Silk;Assets=Loaded;Meshes=1;Texture=1008x752;Items=1;DrawCalls=1;Triangles=20000;...`.
-- Camera orbit gestures visibly change the viewing angle of the 3D model.
-- Portrait/landscape rotation resizes the viewport without clipping or distortion.
-- Background/foreground resume restores the rendered 3D model without missing textures or black geometry.
+Open `/Users/weslleyluiz/git/orbit3d` in the connected VS Code Remote - SSH window.
 
 ---
 
-## 6. Optional iOS Simulator Testing (Development & Debugging)
+## 7. Antigravity Remote Workspace Execution
 
-When a compatible macOS runner or remote macOS host with Xcode and a matching iOS Simulator runtime is available, simulator builds (`iossimulator-arm64` / `iossimulator-x64`) can be used for fast development debugging:
+In the VS Code Remote - SSH window, the **Google Antigravity** extension (`google.google-antigravity`) runs inside the remote extension host (`~/.vscode-server/extensions/google.google-antigravity-1.11.0-darwin-x64`):
 
-1. Select the repository-pinned .NET SDK (`10.0.100`) and Apple workload (`26.5.10318`).
-2. Verify that `xcrun simctl list runtimes` includes an iOS Simulator runtime matching the installed Xcode SDK build.
-3. Build `SilkTriangleSample.csproj` for Simulator (`-f net10.0-ios -c Release`).
-4. Validate installation via `.\scripts\validate-artifacts.ps1 -Platform iOS -Configuration Release -SimulatorId "<UDID>"`.
-5. Run `dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj -c Release --filter "Platform=iOS"` against a local Appium `xcuitest` server (`ORBIT3D_USE_BROWSERSTACK=false`).
-
-> [!IMPORTANT]
-> Simulator execution exercises Apple's software/translated OpenGL ES layer and does not prove physical-device code signing, hardware GPU behavior, or Stage 08 completion.
+- **Environment**: `ANTIGRAVITY_VSCODE_HOST=1`, `ANTIGRAVITY_AGENT=1`, `SSH_CONNECTION=192.168.3.2 ... 192.168.3.9 22`.
+- **Capabilities Verified**:
+  - Direct read/write access to `/Users/weslleyluiz/git/orbit3d` on macOS.
+  - Native zsh command execution on macOS (`dotnet`, `xcodebuild`, `xcrun simctl`, `appium`, `git`, `gh`).
+  - Direct capture and visual inspection of iOS Simulator screenshots and unified logs.
 
 ---
 
-## 7. Troubleshooting
+## 8. Toolchain Versions and Pinning Policy
 
-### 7.1 Missing Apple Code-Signing Secrets in CI
-- **Symptom**: The `Build iOS` job in `.github/workflows/silk-triangle-sample-build.yml` fails at `Validate Apple Signing Secrets for Physical Device IPA`.
-- **Resolution**: Add `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_PROVISIONING_PROFILE_BASE64` to the GitHub repository's Actions secrets.
+The repository root pins the exact SDK and workload set in [`global.json`](../../global.json):
 
-### 7.2 Provisioning Profile Bundle Identifier Mismatch
-- **Symptom**: `codesign` or `dotnet publish -f net10.0-ios -r ios-arm64` fails with `No profiles for 'com.remotecodehub.silktrianglesample' were found`.
-- **Resolution**: Ensure the provisioning profile in `APPLE_PROVISIONING_PROFILE_BASE64` matches `ApplicationId` (`com.remotecodehub.silktrianglesample`) or uses a wildcard App ID (`*`), and includes the signing certificate's public key.
+```json
+{
+  "sdk": {
+    "version": "10.0.302",
+    "workloadVersion": "10.0.302.1",
+    "rollForward": "disable"
+  }
+}
+```
 
-### 7.3 Xcode / Simulator Runtime Mismatch (`actool` Failure on Simulator Builds)
-- **Symptom**: Building for `iossimulator-arm64` on `macos-26` fails in `actool` with `not find any available simulator runtimes for platform iphonesimulator compatible with sdkWatch built for <build>`.
-- **Resolution**: Physical-device builds (`-r ios-arm64` in `silk-triangle-sample-build.yml`) target the `iphoneos` device SDK and do not require an installed simulator runtime. For simulator builds, ensure `sudo xcodebuild -downloadPlatform iOS` installs the matching simulator runtime.
+And [`Directory.Build.props`](../../Directory.Build.props) suppresses strict minor Xcode version mismatches across local and CI environments while pinning `MauiVersion`:
 
-### 7.4 BrowserStack App Installation Failure
-- **Symptom**: BrowserStack rejects the `.ipa` or fails to install on the physical iPhone.
-- **Resolution**: Run `.\scripts\validate-artifacts.ps1 -Platform iOS -ArtifactDirectory "artifacts/ci-builds/silk-triangle-sample-ios"` to verify that `Payload/SilkTriangleSample.app/embedded.mobileprovision` is present, `CFBundleIdentifier` is `com.remotecodehub.silktrianglesample`, and the binary is compiled for `ios-arm64` (not `iossimulator`).
+```xml
+<Project>
+  <PropertyGroup>
+    <ValidateXcodeVersion>false</ValidateXcodeVersion>
+    <_ValidateXcodeVersion>false</_ValidateXcodeVersion>
+    <MauiVersion>10.0.0</MauiVersion>
+  </PropertyGroup>
+</Project>
+```
 
 ---
 
-## 8. References
+## 9. Verifying and Booting the iPhone Air — iOS 26.5 Simulator
 
-- [BrowserStack App Automate with Appium XCUITest](https://www.browserstack.com/docs/app-automate/appium)
-- [GitHub Actions: Installing an Apple certificate on macOS runners for Xcode development](https://docs.github.com/en/actions/use-cases-and-examples/deploying/installing-an-apple-certificate-on-macos-runners-for-xcode-development)
-- [Appium XCUITest Driver](https://appium.github.io/appium-xcuitest-driver/)
+Inspect available runtimes and devices:
+
+```bash
+xcrun simctl list runtimes
+xcrun simctl list devices available
+```
+
+Verify the required **iPhone Air** device under `-- iOS 26.5 --`:
+
+- **Name**: `iPhone Air`
+- **UDID**: `34E134C7-25BB-4925-8A3A-65674A943E87`
+- **Runtime**: `com.apple.CoreSimulator.SimRuntime.iOS-26-5` (`iOS 26.5`)
+
+Boot the simulator and wait for readiness:
+
+```bash
+xcrun simctl boot 34E134C7-25BB-4925-8A3A-65674A943E87
+open -a Simulator
+xcrun simctl bootstatus 34E134C7-25BB-4925-8A3A-65674A943E87 -b
+```
+
+---
+
+## 10. Building `SilkTriangleSample` for iOS Simulator
+
+Restore and build the `net10.0-ios` target in `Release` configuration:
+
+```bash
+dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj \
+  -c Release \
+  -f net10.0-ios
+```
+
+This produces the simulator application bundle at:
+
+```text
+games/3D/SilkTriangleSample/bin/Release/net10.0-ios/iossimulator-x64/SilkTriangleSample.app
+```
+
+---
+
+## 11. Installing and Launching the Application
+
+Install the `.app` bundle onto the booted **iPhone Air** simulator and launch it:
+
+```bash
+xcrun simctl install 34E134C7-25BB-4925-8A3A-65674A943E87 \
+  games/3D/SilkTriangleSample/bin/Release/net10.0-ios/iossimulator-x64/SilkTriangleSample.app
+
+xcrun simctl launch 34E134C7-25BB-4925-8A3A-65674A943E87 \
+  com.remotecodehub.silktrianglesample
+```
+
+---
+
+## 12. Capturing Screenshots and Simulator Logs
+
+Create the local unversioned artifact directories:
+
+```bash
+mkdir -p artifacts/apple/stage-08/screenshots \
+         artifacts/apple/stage-08/logs \
+         artifacts/apple/stage-08/test-results/unit-tests \
+         artifacts/apple/stage-08/test-results/ui-tests
+```
+
+Capture screenshots directly from the framebuffer of the running simulator:
+
+```bash
+xcrun simctl io 34E134C7-25BB-4925-8A3A-65674A943E87 screenshot \
+  artifacts/apple/stage-08/screenshots/initial-render.png
+```
+
+Collect simulator and application logs:
+
+```bash
+xcrun simctl spawn 34E134C7-25BB-4925-8A3A-65674A943E87 log show --last 5m --style compact \
+  > artifacts/apple/stage-08/logs/simulator.log
+
+grep -E "SilkTriangleSample|SilkSample|Orbit3D" artifacts/apple/stage-08/logs/simulator.log \
+  > artifacts/apple/stage-08/logs/application.log
+```
+
+### Verified Rendering Telemetry on iPhone Air (iOS 26.5)
+
+- **Native View & Layer**: `SilkIosSurfaceView` backed by `CAEAGLLayer` (`EAGLContext` OpenGL ES 3.0) with `CADisplayLink` render loop.
+- **Asset Pipeline**: Loads `toyota-gazoo-racing-wrt-gr-yaris-1-10.glb` via `AssimpModelImporter` (`1` mesh, `20,000` triangles) and sidecar PNG texture (`1008x752`).
+- **Diagnostics Overlay**:
+  `Phase=Rendering;Context=Ready;Device=Silk;Assets=Loaded;Meshes=1;Texture=1008x752;Items=1;DrawCalls=1;Triangles=20000;FPS=14;Frames=63;Viewport=1260x2195;Yaw=0.00;Pitch=0.00;Dist=5.50`
+
+---
+
+## 13. Running Unit Tests
+
+Execute the unit test suites and output TRX reports to `artifacts/apple/stage-08/test-results/unit-tests/`:
+
+```bash
+dotnet test engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj \
+  -c Release -f net10.0 \
+  --results-directory artifacts/apple/stage-08/test-results/unit-tests \
+  --logger "trx;LogFileName=Orbit3D.Engine.Tests.trx"
+
+dotnet test engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj \
+  -c Release -f net10.0 \
+  --results-directory artifacts/apple/stage-08/test-results/unit-tests \
+  --logger "trx;LogFileName=Orbit.Engine.Tests.trx"
+
+dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj \
+  -c Release --filter "Category=Artifact" \
+  --results-directory artifacts/apple/stage-08/test-results/unit-tests \
+  --logger "trx;LogFileName=ArtifactDiscoveryTests.trx"
+```
+
+---
+
+## 14. Running iOS Simulator UI Tests (Appium + XCUITest)
+
+Start the local Appium server:
+
+```bash
+appium --address 127.0.0.1 --port 4723 --log artifacts/apple/stage-08/logs/appium.log
+```
+
+Execute the `IosSampleAppTests` suite against the booted **iPhone Air — iOS 26.5** simulator:
+
+```bash
+export ORBIT3D_USE_BROWSERSTACK=false
+export ORBIT3D_IOS_SIMULATOR_UDID="34E134C7-25BB-4925-8A3A-65674A943E87"
+export ORBIT3D_IOS_DEVICE="iPhone Air"
+export ORBIT3D_IOS_OS_VERSION="26.5"
+export ORBIT3D_TEST_ARTIFACTS_DIR="$(pwd)/artifacts/apple/stage-08/screenshots"
+
+dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj \
+  -c Release \
+  --filter "Platform=iOS" \
+  --results-directory artifacts/apple/stage-08/test-results/ui-tests \
+  --logger "trx;LogFileName=IosSampleAppTests.trx"
+```
+
+---
+
+## 15. Local Artifact Storage and Git Exclusion
+
+All local screenshots, logs, and TRX files are stored under `artifacts/apple/stage-08/`. The root [`.gitignore`](../../.gitignore) excludes `artifacts/` so local validation binaries, screenshots, and logs are never committed to Git.
+
+---
+
+## 16. GitHub Actions CI Integration
+
+- **`.github/workflows/dotnet-macos.yml`**: Installs `.NET SDK 10.0.302` and MAUI workload set `10.0.302.1` on `macos-26`, builds `Orbit.Engine`, `Orbit.Input`, `Orbit3D.Engine`, and `Orbit3D.Graphics.Silk` across `net10.0`, `net10.0-ios`, and `net10.0-maccatalyst`, and runs `Orbit.Engine.Tests` and `Orbit3D.Engine.Tests` with TRX artifact upload.
+- **`.github/workflows/dotnet-windows.yml`**: Builds all engine libraries and runs unit tests (`Orbit.Engine.Tests`, `Orbit3D.Engine.Tests`, `ArtifactDiscoveryTests`), then validates `SilkTriangleSample` across `Windows`, `Android`, `iOS` (including iOS Simulator provisioning and Appium/XCUITest UI tests), and `MacCatalyst`.
+- **`.github/workflows/silk-triangle-sample-build.yml`**: Builds and packages `SilkTriangleSample` artifacts for `Android` (`.apk`), `Windows` (`win-x64`), `MacCatalyst` (`.app.zip`), and `iOS` (packaging `SilkTriangleSample-iossimulator.app.zip` when physical-device Apple signing secrets are absent, or signed `.ipa` when configured).

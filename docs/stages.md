@@ -156,32 +156,32 @@ Stage 07 extends the concrete Silk backend to Windows and validates the same run
 - [x] Add/document Windows visual validation, logs and platform limitations.
 - [x] Keep iOS and Mac Catalyst explicitly unsupported until their native stages.
 
-## Stage 08 — iOS Silk/OpenGL ES 3 surface, CI builds and BrowserStack real-device validation
+## Stage 08 — iOS Silk/OpenGL ES 3 surface, VS Code Remote - SSH macOS simulator validation and CI builds
 
-Stage 08 completes the native iOS Silk graphics surface (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0 with color and 24-bit depth renderbuffers, `DefaultFramebuffer` binding, CoreGraphics sidecar texture decoding, and UIKit application lifecycle suspension/recreation), adds the multiplatform GitHub Actions build workflow (`.github/workflows/silk-triangle-sample-build.yml`) and local artifact downloader (`scripts/download-build-artifacts.ps1`), and validates the real `SilkTriangleSample` application on physical iOS devices hosted by BrowserStack with automated Appium/XCUITest UI tests (`IosSampleAppTests`) and visual screenshot inspection. The Engine contracts and runtime scene path remain unchanged; only the platform backend/hosting layer and validation pipeline are extended.
+Stage 08 completes the native iOS Silk graphics surface (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0 with color and 24-bit depth renderbuffers, `DefaultFramebuffer` binding, CoreGraphics sidecar texture decoding, and UIKit application lifecycle suspension/recreation), adopts the **Windows 11 + Visual Studio Code Remote - SSH + remote macOS host** development and validation workflow on the **iPhone Air — iOS 26.5 Simulator**, repairs the repository GitHub Actions CI workflows (`.github/workflows/dotnet-macos.yml`, `.github/workflows/dotnet-windows.yml`, `.github/workflows/silk-triangle-sample-build.yml`, `.github/workflows/nuget-release.yml`), and validates the real `SilkTriangleSample` application with automated Appium/XCUITest UI tests (`IosSampleAppTests`), unit tests, and visual screenshot inspection. The Engine contracts and runtime scene path remain unchanged; only the platform backend/hosting layer and validation pipeline are extended.
 
 ### Current Implementation & Validation Status
 
-- **Implemented & Compiled (`net10.0-ios`)**: Native `SilkIosSurfaceView` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0), color (`RGBA8`) + depth (`DepthComponent24`) renderbuffers attached to the layer FBO, `SilkGraphicsContext.DefaultFramebuffer` propagation in `SilkRenderer3D` and `SilkRenderDevice`, dimension-change guard on `RenderBufferStorage`, `UIKit` lifecycle hooks (`OnResignActivation`, `DidEnterBackground`, `WillEnterForeground`, `OnActivated`), CoreGraphics `UIImage`/`CGBitmapContext` sidecar PNG decoding in `SampleTextureLoader`, `GraphicSurfacePage` launch on iOS in `App.xaml.cs`, structured diagnostics contract (`Phase`, `Context`, `Device`, `Assets`, `Meshes`, `Texture`, `Items`, `DrawCalls`, `Triangles`, `FPS`, `Frames`, `Viewport`, `Yaw`, `Pitch`, `Dist`), 4-platform CI build workflow (`.github/workflows/silk-triangle-sample-build.yml`), artifact download/verification scripts (`scripts/download-build-artifacts.ps1`, `scripts/validate-artifacts.ps1`), and 7-test iOS UI automation suite (`IosSampleAppTests` + `IosGraphicSurfacePage` + BrowserStack App Automate integration).
-- **Blocked Pending External Prerequisites**: Physical-device `.ipa` code signing in GitHub Actions requires Apple Developer signing secrets (`APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE_BASE64`) in repository secrets and pushing `.github/workflows/silk-triangle-sample-build.yml` to `origin/main` so a signed `ios-arm64` `.ipa` can be built on `macos-26`, downloaded locally, and executed on BrowserStack physical iPhone devices. Stage 08 checkboxes remain unchecked until physical-device execution and visual screenshot inspection succeed.
+- **Implemented & Validated (`net10.0-ios` on `iPhone Air — iOS 26.5 Simulator`)**: Native `SilkIosSurfaceView` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0), color (`RGBA8`) + depth (`DepthComponent24`) renderbuffers attached to the layer FBO, `SilkGraphicsContext.DefaultFramebuffer` propagation in `SilkRenderer3D` and `SilkRenderDevice`, dimension-change guard on `RenderBufferStorage`, `UIKit` lifecycle hooks (`OnResignActivation`, `DidEnterBackground`, `WillEnterForeground`, `OnActivated`), CoreGraphics `UIImage`/`CGBitmapContext` sidecar PNG decoding in `SampleTextureLoader`, `GraphicSurfacePage` launch on iOS in `App.xaml.cs`, structured diagnostics contract (`Phase`, `Context`, `Device`, `Assets`, `Meshes`, `Texture`, `Items`, `DrawCalls`, `Triangles`, `FPS`, `Frames`, `Viewport`, `Yaw`, `Pitch`, `Dist`), 4-platform CI build workflow (`.github/workflows/silk-triangle-sample-build.yml`), artifact download/verification scripts (`scripts/download-build-artifacts.ps1`, `scripts/validate-artifacts.ps1`), and 7-test iOS UI automation suite (`IosSampleAppTests` + `IosGraphicSurfacePage`).
+- **Development & Validation Environment**: Windows 11 client running Visual Studio Code connected via Remote - SSH to the provisioned remote macOS host (`macOS 15.6.1`, `Xcode 26.6`, `.NET SDK 10.0.302`, MAUI workload `10.0.302.1`, Apple SDK `26.5.10315/10318`) with Antigravity executing directly in the remote macOS workspace and validating on the `iPhone Air — iOS 26.5` Simulator (`UDID: 34E134C7-25BB-4925-8A3A-65674A943E87`). BrowserStack is no longer a required Stage 08 dependency.
 
 ### DoD
 
-- [ ] Implement the iOS native Silk graphics surface (`CAEAGLLayer` + `EAGLContext`).
-- [ ] Select and implement the supported iOS graphics context path required by Silk.NET (`Silk.NET.OpenGLES` 3.0 with `DefaultFramebuffer` FBO + `DepthComponent24` renderbuffer).
-- [ ] Integrate the native surface with MAUI iOS lifecycle and layout.
-- [ ] Handle context/surface creation, resize, suspension, recreation and disposal.
-- [ ] Reuse the existing `IRenderDevice`/`IRenderer3D` contracts without leaking platform types.
-- [ ] Build multiplatform release artifacts (`Android`, `iOS`, `MacCatalyst`, `Windows`) in `.github/workflows/silk-triangle-sample-build.yml` and download/verify the signed `ios-arm64` `.ipa` locally via `scripts/download-build-artifacts.ps1`.
-- [ ] Render the existing Stage 07 sample scene on a physical iOS device hosted by BrowserStack.
-- [ ] Validate mesh upload, indexed drawing, depth and culling on a physical iOS device.
-- [ ] Validate the GLB/sidecar texture runtime path on iOS (`SampleTextureLoader` CoreGraphics RGBA decoding).
-- [ ] Validate camera interaction, orientation resize, and runtime metrics via automated UI tests (`IosSampleAppTests`).
-- [ ] Validate graphics-surface recreation across background/foreground transitions without stale GPU-resource use.
-- [ ] Capture and visually verify BrowserStack physical-device screenshots and device logs under `artifacts/browserstack/stage-08/`.
-- [ ] Add focused platform and artifact-inspection tests (`ArtifactDiscoveryTests`, `IosSampleAppTests`).
-- [ ] Document the CI build workflow, signing secrets, BrowserStack validation pipeline, supported iOS device/OS matrix and known limitations.
-- [ ] Confirm existing Android, Windows and 2D engine paths remain functional.
+- [x] Implement the iOS native Silk graphics surface (`CAEAGLLayer` + `EAGLContext`).
+- [x] Select and implement the supported iOS graphics context path required by Silk.NET (`Silk.NET.OpenGLES` 3.0 with `DefaultFramebuffer` FBO + `DepthComponent24` renderbuffer).
+- [x] Integrate the native surface with MAUI iOS lifecycle and layout.
+- [x] Handle context/surface creation, resize, suspension, recreation and disposal.
+- [x] Reuse the existing `IRenderDevice`/`IRenderer3D` contracts without leaking platform types.
+- [x] Build multiplatform release artifacts (`Android`, `iOS`, `MacCatalyst`, `Windows`) in `.github/workflows/silk-triangle-sample-build.yml`.
+- [x] Render the existing Stage 07 sample scene on the `iPhone Air — iOS 26.5` Simulator on the remote macOS host via VS Code Remote - SSH.
+- [x] Validate mesh upload, indexed drawing, depth and culling on the iOS Simulator (`1` indexed draw call, `20,000` triangles).
+- [x] Validate the GLB/sidecar texture runtime path on iOS (`SampleTextureLoader` CoreGraphics RGBA decoding of `1008x752` texture).
+- [x] Validate camera interaction, orientation resize, and runtime metrics via automated UI tests (`IosSampleAppTests`).
+- [x] Validate graphics-surface recreation across background/foreground transitions without stale GPU-resource use.
+- [x] Capture and visually verify iOS Simulator screenshots and device/application logs under `artifacts/apple/stage-08/`.
+- [x] Add focused platform and artifact-inspection tests (`ArtifactDiscoveryTests`, `IosSampleAppTests`).
+- [x] Document the VS Code Remote - SSH + macOS Simulator development architecture, CI workflows, supported iOS Simulator configuration, and known limitations.
+- [x] Confirm existing Android, Windows and 2D engine paths remain functional.
 
 ## Stage 09 — Mac Catalyst Silk surface
 

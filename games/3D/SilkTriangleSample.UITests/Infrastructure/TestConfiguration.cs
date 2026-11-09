@@ -59,10 +59,10 @@ public static class TestConfiguration
         Environment.GetEnvironmentVariable("ORBIT3D_IOS_SIMULATOR_UDID");
 
     public static string IosDeviceName =>
-        Environment.GetEnvironmentVariable("ORBIT3D_IOS_DEVICE") ?? "iPhone 16";
+        Environment.GetEnvironmentVariable("ORBIT3D_IOS_DEVICE") ?? "iPhone Air";
 
     public static string IosOsVersion =>
-        Environment.GetEnvironmentVariable("ORBIT3D_IOS_OS_VERSION") ?? "18";
+        Environment.GetEnvironmentVariable("ORBIT3D_IOS_OS_VERSION") ?? "26.5";
 
     public static string? BrowserStackUsername =>
         Environment.GetEnvironmentVariable("BROWSERSTACK_USERNAME");

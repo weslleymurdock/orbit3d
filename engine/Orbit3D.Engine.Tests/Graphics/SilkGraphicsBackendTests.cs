@@ -24,13 +24,21 @@ public class SilkGraphicsBackendTests
 
         builder.UseOrbit3DEngine();
 
+#if ANDROID || IOS || MACCATALYST || WINDOWS
         Assert.Contains(builder.Services, descriptor => descriptor.ServiceType == typeof(IModelImporter));
+#else
+        Assert.DoesNotContain(builder.Services, descriptor => descriptor.ServiceType == typeof(IModelImporter));
+#endif
     }
 
     [Fact]
     public void UseSilkGraphics_ReportsCurrentPlatformSupport()
     {
+#if ANDROID || IOS || WINDOWS
         Assert.True(SilkGraphicsPlatformSupport.IsCurrentPlatformSupported());
+#else
+        Assert.False(SilkGraphicsPlatformSupport.IsCurrentPlatformSupported());
+#endif
     }
 
     [Fact]
@@ -38,9 +46,13 @@ public class SilkGraphicsBackendTests
     {
         var builder = MauiApp.CreateBuilder();
 
+#if ANDROID || IOS || WINDOWS
         builder.UseSilkGraphics();
 
         Assert.Contains(builder.Services, descriptor => descriptor.ServiceType == typeof(IModelImporter));
+#else
+        Assert.Throws<PlatformNotSupportedException>(() => builder.UseSilkGraphics());
+#endif
     }
 
     [Fact]

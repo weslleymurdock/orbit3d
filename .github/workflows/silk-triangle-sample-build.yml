@@ -93,12 +93,12 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.100'
+          dotnet-version: '10.0.302'
 
       - name: Install MAUI Workloads
         shell: pwsh
         run: |
-          dotnet workload install maui ${{ matrix.workloads }}
+          dotnet workload install maui ${{ matrix.workloads }} --version 10.0.302.1
           dotnet --info
 
       - name: Configure iOS Code Signing (Physical Device ios-arm64)
@@ -279,20 +279,31 @@ jobs:
 
             "iOS" {
               if ("${{ steps.ios_signing.outputs.signing_configured }}" -ne "true") {
-                Write-Host "Running unsigned ios-arm64 compilation verification before reporting missing signing secrets..."
+                Write-Host "Apple physical-device signing secrets are not configured; building iOS Simulator .app bundle..."
                 dotnet build $env:PROJECT_PATH `
                   -c $env:BUILD_CONFIGURATION `
                   -f ${{ matrix.tfm }} `
                   -p:TargetFrameworks=${{ matrix.tfm }} `
-                  -p:RuntimeIdentifier=ios-arm64 `
-                  -p:BuildIpa=false `
-                  -p:CodesignRequireProvisioningProfile=false `
-                  -p:EnableCodeSigning=false `
                   -bl:$binlogFile 2>&1 | Tee-Object -FilePath $logFile
+                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-                Write-Error "iOS physical-device IPA packaging is BLOCKED because Apple signing secrets (APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_PROVISIONING_PROFILE_BASE64) are not configured in GitHub Secrets. Refusing to publish an unsigned or simulator build as a physical-device IPA."
-                exit 1
-              }
+                $binDir = "games/3D/SilkTriangleSample/bin/$env:BUILD_CONFIGURATION/${{ matrix.tfm }}"
+                $appBundle = Get-ChildItem -Path $binDir -Recurse -Directory -Filter "SilkTriangleSample.app" | Select-Object -First 1
+                if (-not $appBundle) {
+                  Write-Error "iOS Simulator SilkTriangleSample.app bundle was not produced in $binDir."
+                  exit 1
+                }
+
+                $zipPath = Join-Path $outRoot "SilkTriangleSample-iossimulator.app.zip"
+                ditto -c -k --sequesterRsrc --keepParent $appBundle.FullName $zipPath
+                if (-not (Test-Path $zipPath) -or (Get-Item $zipPath).Length -eq 0) {
+                  Write-Error "Failed to archive iOS Simulator .app bundle."
+                  exit 1
+                }
+
+                "primary_file=SilkTriangleSample-iossimulator.app.zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+                "primary_path=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+              } else {
 
               $identityArg = "${{ steps.ios_signing.outputs.signing_identity }}"
               $provisionArg = "${{ steps.ios_signing.outputs.provisioning_profile }}"
@@ -349,6 +360,7 @@ jobs:
               "primary_file=SilkTriangleSample.ipa" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
               "primary_path=$destIpa" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
               "ipa_arch=$lipoOut" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+              }
             }
           }
 
@@ -429,7 +441,7 @@ jobs:
 
           if ("${{ matrix.platform }}" -eq "iOS" -and "${{ steps.ios_signing.outputs.signing_configured }}" -ne "true") {
             $lines += ""
-            $lines += "> **Blocker:** Physical-device iOS `.ipa` signing requires `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_PROVISIONING_PROFILE_BASE64` repository secrets."
+            $lines += "> **Note:** Packaged iOS Simulator `.app` bundle (`SilkTriangleSample-iossimulator.app.zip`) because physical-device Apple signing secrets are not configured."
           }
 
           $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

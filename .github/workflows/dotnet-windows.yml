@@ -16,24 +16,43 @@ jobs:
       with:
         fetch-depth: 0
     - name: Setup .NET
-      uses: actions/setup-dotnet@v6
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '10.0.100'
-    - name: workload install
-      run: dotnet workload install maui
-    - name: Restore dependencies - engine
+        dotnet-version: '10.0.302'
+    - name: Install MAUI workloads
+      run: dotnet workload install maui --version 10.0.302.1
+    - name: Restore dependencies - Orbit.Engine
       run: dotnet restore engine/Orbit.Engine/Orbit.Engine.csproj
-    - name: Restore dependencies - input
+    - name: Restore dependencies - Orbit.Input
       run: dotnet restore engine/Orbit.Input/Orbit.Input.csproj
-    - name: Restore dependencies - tests
+    - name: Restore dependencies - Orbit3D.Engine
+      run: dotnet restore engine/Orbit3D.Engine/Orbit3D.Engine.csproj
+    - name: Restore dependencies - Orbit3D.Graphics.Silk
+      run: dotnet restore engine/Orbit3D.Graphics.Silk/Orbit3D.Graphics.Silk.csproj
+    - name: Restore dependencies - Orbit.Engine.Tests
       run: dotnet restore engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj
-    - name: Build engine
-      run: dotnet build engine/Orbit.Engine/Orbit.Engine.csproj --no-restore -c Release
-    - name: Build input
-      run: dotnet build engine/Orbit.Input/Orbit.Input.csproj --no-restore -c Release
-
-    - name: Run tests
-      run: dotnet test engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj --no-restore
+    - name: Restore dependencies - Orbit3D.Engine.Tests
+      run: dotnet restore engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj
+    - name: Build Orbit.Engine
+      run: dotnet build engine/Orbit.Engine/Orbit.Engine.csproj --no-restore -c Release -f net10.0 -f net10.0-android -f net10.0-ios -f net10.0-maccatalyst -f net10.0-windows10.0.19041.0
+    - name: Build Orbit.Input
+      run: dotnet build engine/Orbit.Input/Orbit.Input.csproj --no-restore -c Release -f net10.0 -f net10.0-android -f net10.0-ios -f net10.0-maccatalyst -f net10.0-windows10.0.19041.0
+    - name: Build Orbit3D.Engine
+      run: dotnet build engine/Orbit3D.Engine/Orbit3D.Engine.csproj --no-restore -c Release -f net10.0 -f net10.0-android -f net10.0-ios -f net10.0-maccatalyst -f net10.0-windows10.0.19041.0
+    - name: Build Orbit3D.Graphics.Silk
+      run: dotnet build engine/Orbit3D.Graphics.Silk/Orbit3D.Graphics.Silk.csproj --no-restore -c Release -f net10.0 -f net10.0-android -f net10.0-ios -f net10.0-maccatalyst -f net10.0-windows10.0.19041.0
+    - name: Run Orbit.Engine.Tests (net10.0)
+      run: dotnet test engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj -c Release -f net10.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit.Engine.Tests-windows.trx"
+    - name: Run Orbit3D.Engine.Tests (net10.0)
+      run: dotnet test engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj -c Release -f net10.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit3D.Engine.Tests-windows.trx"
+    - name: Run Artifact Discovery Unit Tests
+      run: dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj -c Release --filter "Category=Artifact" --results-directory artifacts/test-results --logger "trx;LogFileName=ArtifactDiscoveryTests-windows.trx"
+    - name: Upload Unit Test Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-results-windows
+        path: artifacts/test-results/**/*.trx
 
   sample-3d-validation:
     name: 3D Sample Validation (${{ matrix.platform }})
@@ -118,13 +137,14 @@ jobs:
 
         $selectedUdid = $null
         if ($devices) {
-          $preferred = $devices | Where-Object { $_.name -eq "iPhone 16" } | Select-Object -First 1
+          $preferred = $devices | Where-Object { $_.name -eq "iPhone Air" } | Select-Object -First 1
+          if (-not $preferred) { $preferred = $devices | Where-Object { $_.name -eq "iPhone 16" } | Select-Object -First 1 }
           if (-not $preferred) { $preferred = $devices | Select-Object -First 1 }
           $selectedUdid = $preferred.udid
           Write-Host "Found available simulator: $($preferred.name) ($selectedUdid)"
         } else {
-          Write-Host "Creating iPhone 16 simulator for runtime $runtimeId..."
-          $selectedUdid = xcrun simctl create "Orbit3D-iPhone16" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" $runtimeId
+          Write-Host "Creating iPhone simulator for runtime $runtimeId..."
+          $selectedUdid = xcrun simctl create "Orbit3D-iPhone" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" $runtimeId
           Write-Host "Created simulator with UDID: $selectedUdid"
         }
 
@@ -139,11 +159,11 @@ jobs:
         Write-Host "Exported ORBIT3D_IOS_SIMULATOR_UDID=$selectedUdid to GITHUB_ENV."
 
     - name: Setup .NET with Workload
-      uses: actions/setup-dotnet@v6
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '10.0.100'
+        dotnet-version: '10.0.302'
     - name: Install workloads
-      run: dotnet workload install maui ${{ matrix.workloads }}
+      run: dotnet workload install maui ${{ matrix.workloads }} --version 10.0.302.1
     - name: Print Toolchain Diagnostics
       shell: pwsh
       run: |

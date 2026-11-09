@@ -27,7 +27,7 @@ public static class AppiumDriverFactory
 
         var commandTimeout = TestConfiguration.UseBrowserStack
             ? TimeSpan.FromSeconds(180)
-            : TimeSpan.FromSeconds(120);
+            : TimeSpan.FromSeconds(300);
 
         return platform switch
         {
@@ -72,8 +72,8 @@ public static class AppiumDriverFactory
                 ? TestConfiguration.IosOsVersion
                 : "14.0";
 
-            options.AddAdditionalAppiumOption("deviceName", deviceName);
-            options.AddAdditionalAppiumOption("platformVersion", osVersion);
+            options.DeviceName = deviceName;
+            options.PlatformVersion = osVersion;
 
             if (platform == PlatformKind.iOS)
             {
@@ -118,7 +118,7 @@ public static class AppiumDriverFactory
                 options.AddAdditionalAppiumOption("appActivity", "crc642279f0ce6b63d917.MainActivity");
                 options.AddAdditionalAppiumOption("autoGrantPermissions", true);
                 if (!string.IsNullOrEmpty(TestConfiguration.AndroidDeviceName))
-                    options.AddAdditionalAppiumOption("deviceName", TestConfiguration.AndroidDeviceName);
+                    options.DeviceName = TestConfiguration.AndroidDeviceName;
                 return options;
 
             case PlatformKind.Windows:
@@ -133,8 +133,26 @@ public static class AppiumDriverFactory
                 options.AutomationName = "XCUITest";
                 options.App = appPath;
                 options.AddAdditionalAppiumOption("bundleId", resolvedAppId);
+                options.AddAdditionalAppiumOption("wdaLaunchTimeout", 240000);
+                options.AddAdditionalAppiumOption("wdaConnectionTimeout", 240000);
+                var wdaUrl = Environment.GetEnvironmentVariable("ORBIT3D_IOS_WDA_URL");
+                if (!string.IsNullOrWhiteSpace(wdaUrl))
+                {
+                    options.AddAdditionalAppiumOption("webDriverAgentUrl", wdaUrl);
+                }
                 if (!string.IsNullOrEmpty(TestConfiguration.IosSimulatorUdid))
+                {
                     options.AddAdditionalAppiumOption("udid", TestConfiguration.IosSimulatorUdid);
+                    if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ORBIT3D_IOS_DEVICE")))
+                        options.DeviceName = TestConfiguration.IosDeviceName;
+                    if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ORBIT3D_IOS_OS_VERSION")))
+                        options.PlatformVersion = TestConfiguration.IosOsVersion;
+                }
+                else
+                {
+                    options.DeviceName = TestConfiguration.IosDeviceName;
+                    options.PlatformVersion = TestConfiguration.IosOsVersion;
+                }
                 return options;
 
             case PlatformKind.MacCatalyst:

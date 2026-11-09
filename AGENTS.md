@@ -63,4 +63,10 @@ For every stage:
 4. Validate a real MAUI target when platform code changes.
 5. Report unsupported platforms explicitly.
 
-Read `docs/` and the relevant `.github/skills/*/SKILL.md` (or `.agents/skills/*/SKILL.md`) before implementing a 3D milestone.
+## Git operations and remote changes
+- Do not create commits or push changes by default. Keep implementation changes in the working tree unless the task explicitly authorizes a commit/push or the requested deliverable cannot be completed without publishing the changes.
+- A task explicitly requiring a GitHub Actions CI build, workflow dispatch, or CI-produced artifacts authorizes the minimum necessary commit and push of the relevant, validated changes to the intended branch when those changes must be present on GitHub for the workflow to run. This authorization is limited to that task and its required CI inputs; it is not blanket permission to publish unrelated or unfinished work.
+- When the user explicitly requests a commit, push, release, or other remote write, perform only the requested remote operation and its necessary prerequisites.
+- Before committing, inspect the current branch, working-tree status, staged diff, and recent history. Stage only files relevant to the task and use a descriptive commit message.
+- Before pushing, verify the destination remote and branch. Never force-push, rewrite shared history, or push to a different branch unless the user explicitly requests it.
+- If a required remote operation fails because of authentication, branch protection, permissions, conflicts, or network errors, preserve local changes and report the exact blocker and recovery action. Do not claim the remote operation succeeded.

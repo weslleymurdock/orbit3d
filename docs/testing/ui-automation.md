@@ -138,10 +138,10 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
   - Retained in `AppiumDriverFactory` behind `ORBIT3D_USE_BROWSERSTACK=true`, `ORBIT3D_BROWSERSTACK_APP=bs://<app-id>`, `BROWSERSTACK_USERNAME`, and `BROWSERSTACK_ACCESS_KEY`, but no longer required for Stage 08 completion.
 
 ### 6.3 Mac Catalyst
-- **Prerequisites:** macOS host, Xcode, Accessibility permissions.
+- **Prerequisites:** macOS host, Xcode, Accessibility permissions (for Appium `mac2`), active display power state (`caffeinate -u` when running over SSH so `CADisplayLink` and `CAOpenGLLayer` callbacks fire).
 - **Appium Driver:** `mac2` (`appium driver install mac2`).
-- **Artifact:** `SilkTriangleSample.app` bundle.
-- **Known Limitation & Policy:** Mac Catalyst does not currently implement a native Silk graphics surface (`PlatformNotSupportedException`). Startup loads `MainPage`. MacCatalyst UI automation remains disabled (`enable-ui-tests: false`) until a reliable driver and automation path is demonstrated.
+- **Artifact:** `SilkTriangleSample.app` bundle (`games/3D/SilkTriangleSample/bin/Debug/net10.0-maccatalyst/maccatalyst-x64/SilkTriangleSample.app`).
+- **Status & Policy:** Stage 09 implements the native Mac Catalyst Silk graphics surface (`SilkMacSurfaceView` + `CAOpenGLLayer` OpenGL 4.1 core profile) and launches `GraphicSurfacePage` on startup. `MacCatalystGraphicSurfacePage` and `MacCatalystSampleAppTests` validate surface visibility, context creation, asset loading, and frame rendering when an Appium `mac2` server with macOS TCC Accessibility permissions is available; direct runtime validation over Remote - SSH uses `scripts/validate-maccatalyst.sh` and `scripts/capture-maccatalyst-frame.sh`.
 
 ### 6.4 Windows
 - **Prerequisites:** Windows 10/11 x64, Developer Mode enabled, Windows App SDK Runtime.

@@ -15,6 +15,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Orbit3D.Engine.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Orbit3D.Engine\Orbit3D.Engine.csproj" />
   </ItemGroup>
 

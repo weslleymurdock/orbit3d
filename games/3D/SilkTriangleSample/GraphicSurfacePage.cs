@@ -19,6 +19,8 @@ public sealed class GraphicSurfacePage : ContentPage
     private readonly Label statusLabel;
     private readonly Label diagnosticsLabel;
     private readonly object renderLock = new();
+    private static readonly string? ValidationCommandFile = Environment.GetEnvironmentVariable("ORBIT3D_COMMAND_FILE");
+    private static readonly bool LogDiagnosticsText = Environment.GetEnvironmentVariable("ORBIT3D_LOG_DIAGNOSTICS") == "1";
     private bool importStarted;
     private bool firstRenderedFrameLogged;
     private long lastMetricsUpdateTimestamp;
@@ -101,6 +103,7 @@ public sealed class GraphicSurfacePage : ContentPage
     {
         base.OnAppearing();
         surface.IsVisible = true;
+        StartValidationCommandPump();
         if (importStarted)
             return;
 
@@ -178,6 +181,84 @@ public sealed class GraphicSurfacePage : ContentPage
             SetStatusText($"Import failed: {exception.Message}");
             SetDiagnosticsText($"Phase=Failed;Stage=AssetImport;Error={exception.GetType().Name}");
         }
+    }
+
+    /// <summary>
+    /// Validation hook, active only when <c>ORBIT3D_COMMAND_FILE</c> is set: applies <c>orbit &lt;yaw&gt; &lt;pitch&gt;</c>, <c>zoom &lt;delta&gt;</c> and
+    /// <c>resize &lt;width&gt; &lt;height&gt;</c> lines to the same camera controller and window that the gesture handlers use, then deletes the file.
+    /// It exists so camera and resize behavior can be exercised on hosts where synthetic pointer input is not permitted.
+    /// </summary>
+    private void StartValidationCommandPump()
+    {
+        if (string.IsNullOrEmpty(ValidationCommandFile) || Dispatcher is null)
+            return;
+
+        var timer = Dispatcher.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(250);
+        timer.Tick += (_, _) =>
+        {
+            if (!File.Exists(ValidationCommandFile))
+                return;
+
+            string[] lines;
+            try
+            {
+                lines = File.ReadAllLines(ValidationCommandFile);
+                File.Delete(ValidationCommandFile);
+            }
+            catch (IOException exception)
+            {
+                LogDiagnostic($"Validation command file could not be consumed: {exception.Message}");
+                return;
+            }
+
+            foreach (var line in lines)
+                ApplyValidationCommand(line.Trim());
+        };
+        timer.Start();
+    }
+
+    private void ApplyValidationCommand(string line)
+    {
+        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+            return;
+
+        var inv = CultureInfo.InvariantCulture;
+        switch (parts[0])
+        {
+            case "orbit" when parts.Length == 3:
+                cameraController.Orbit(float.Parse(parts[1], inv), float.Parse(parts[2], inv));
+                break;
+            case "zoom" when parts.Length == 2:
+                cameraController.Zoom(float.Parse(parts[1], inv));
+                break;
+            case "resize" when parts.Length == 3 && Window is not null:
+                Window.Width = double.Parse(parts[1], inv);
+                Window.Height = double.Parse(parts[2], inv);
+                break;
+            case "pause":
+                if (surface.Handler?.PlatformView is not null)
+                    surface.Handler.PlatformView.GetType().GetMethod("PauseRendering")?.Invoke(surface.Handler.PlatformView, null);
+                break;
+            case "suspend":
+                if (surface.Handler?.PlatformView is not null)
+                    surface.Handler.PlatformView.GetType().GetMethod("SuspendSurface")?.Invoke(surface.Handler.PlatformView, null);
+                break;
+            case "resume":
+                if (surface.Handler?.PlatformView is not null)
+                    surface.Handler.PlatformView.GetType().GetMethod("ResumeSurface")?.Invoke(surface.Handler.PlatformView, null);
+                break;
+            case "release":
+                if (surface.Handler?.PlatformView is not null)
+                    surface.Handler.PlatformView.GetType().GetMethod("ReleaseSurface")?.Invoke(surface.Handler.PlatformView, null);
+                break;
+            default:
+                LogDiagnostic($"Unknown validation command '{line}'.");
+                return;
+        }
+
+        LogDiagnostic($"Applied validation command '{line}'.");
     }
 
     protected override void OnDisappearing()
@@ -323,6 +404,9 @@ public sealed class GraphicSurfacePage : ContentPage
 
     private void SetDiagnosticsText(string text)
     {
+        if (LogDiagnosticsText)
+            LogDiagnostic($"Diagnostics: {text}");
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
             if (!string.Equals(diagnosticsLabel.Text, text, StringComparison.Ordinal))

@@ -22,6 +22,9 @@ The sample targets `net10.0-windows10.0.19041.0` on Windows hosts and registers 
 ## Stage 08 iOS
 The sample targets `net10.0-ios` (`ApplicationId`: `com.remotecodehub.silktrianglesample`) and uses `SilkGraphicsSurfaceHandler` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0) with CoreGraphics sidecar texture decoding in `SampleTextureLoader`. Apple development and validation use Visual Studio Code Remote - SSH from Windows 11 to the provisioned remote macOS host (`macOS 15.6.1`, `Xcode 26.6`, `.NET SDK 10.0.302`) running the `iPhone Air — iOS 26.5` Simulator (`UDID: 34E134C7-25BB-4925-8A3A-65674A943E87`) and automated Appium/XCUITest UI tests (`IosSampleAppTests`). Multiplatform release artifacts are also built in CI via `.github/workflows/silk-triangle-sample-build.yml`.
 
+## Stage 09 Mac Catalyst
+The sample targets `net10.0-maccatalyst` (`ApplicationId`: `com.remotecodehub.silktrianglesample`, `SupportedOSPlatformVersion`: `17.0` on the sample and `15.0` on `Orbit3D.Engine`) and registers `SilkGraphicsSurfaceHandler` (`SilkMacSurfaceView` + `CAOpenGLLayer` + CGL OpenGL 4.1 core profile) via `UseSilkGraphics()`. Build and run on macOS with `dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj -c Debug -f net10.0-maccatalyst` or `scripts/validate-maccatalyst.sh`. Sidecar PNG decoding shares the `IOS || MACCATALYST` CoreGraphics path in `SampleTextureLoader`. Validation evidence (rendered frame captures and diagnostic logs) is stored under `artifacts/apple/stage-09/`.
+
 ## Public API
 Public engine APIs require XML documentation. Prefer stable Orbit concepts over third-party implementation details.
 

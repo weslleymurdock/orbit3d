@@ -4,7 +4,7 @@ namespace Orbit3D.Graphics.Silk;
 
 /// <summary>
 /// MAUI view for GPU rendering through a platform-owned Silk graphics context.
-/// Android and iOS provide an OpenGL ES 3 surface and Windows provides an OpenGL 3.3 surface.
+/// Android and iOS provide an OpenGL ES 3 surface, Windows provides an OpenGL 3.3 surface and Mac Catalyst provides an OpenGL 4.1 core-profile surface.
 /// </summary>
 public sealed class SilkGraphicsSurface : View
 {

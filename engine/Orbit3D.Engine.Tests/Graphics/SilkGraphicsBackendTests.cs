@@ -34,7 +34,7 @@ public class SilkGraphicsBackendTests
     [Fact]
     public void UseSilkGraphics_ReportsCurrentPlatformSupport()
     {
-#if ANDROID || IOS || WINDOWS
+#if ANDROID || IOS || MACCATALYST || WINDOWS
         Assert.True(SilkGraphicsPlatformSupport.IsCurrentPlatformSupported());
 #else
         Assert.False(SilkGraphicsPlatformSupport.IsCurrentPlatformSupported());
@@ -46,7 +46,7 @@ public class SilkGraphicsBackendTests
     {
         var builder = MauiApp.CreateBuilder();
 
-#if ANDROID || IOS || WINDOWS
+#if ANDROID || IOS || MACCATALYST || WINDOWS
         builder.UseSilkGraphics();
 
         Assert.Contains(builder.Services, descriptor => descriptor.ServiceType == typeof(IModelImporter));

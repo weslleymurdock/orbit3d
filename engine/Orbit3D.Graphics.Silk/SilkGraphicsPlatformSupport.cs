@@ -9,7 +9,7 @@ public static class SilkGraphicsPlatformSupport
     /// Gets a value indicating whether the current build targets a MAUI platform with a native Silk surface implementation.
     /// </summary>
     public static bool IsCurrentPlatformSupported() =>
-#if ANDROID || IOS || WINDOWS
+#if ANDROID || IOS || MACCATALYST || WINDOWS
         true;
 #else
         false;

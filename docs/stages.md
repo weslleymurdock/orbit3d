@@ -185,23 +185,27 @@ Stage 08 completes the native iOS Silk graphics surface (`CAEAGLLayer` + `EAGLCo
 
 ## Stage 09 — Mac Catalyst Silk surface
 
-Stage 09 adds the native Mac Catalyst Silk graphics surface and integrates it with the MAUI Mac Catalyst window/view lifecycle. The same backend-neutral renderer and runtime scene are reused, with platform-specific context and surface management isolated in the Silk project. The stage provides a real Mac Catalyst validation target before cross-platform stabilization.
+Stage 09 adds the native Mac Catalyst Silk graphics surface (`CAOpenGLLayer` + CGL OpenGL 4.1 core profile) and integrates it with the MAUI Mac Catalyst window/view lifecycle. The same backend-neutral renderer and runtime scene are reused, with platform-specific context and surface management isolated in the Silk project. The stage provides a real Mac Catalyst validation target before cross-platform stabilization.
+
+### Current Implementation & Validation Status
+
+- **Implemented & Validated (`net10.0-maccatalyst` on `macOS 15.6.1`, `Intel UHD Graphics 630`)**: Native `SilkMacSurfaceView` (`UIView` hosting a dynamically registered Objective-C `CAOpenGLLayer` subclass `OrbitSilkOpenGLLayer` with a CGL `kCGLOGLPVersion_GL4_Core` OpenGL 4.1 core-profile pixel format, 24-bit color + 8-bit alpha + 24-bit depth buffer, `CADisplayLink` frame scheduling, and `SilkNativeContextLifetime` context ownership), `DefaultFramebuffer` propagation from the compositor's bound FBO, `SilkGraphicsMauiExtensions` Mac Catalyst handler and lifecycle registration (`SceneDidDisconnect`, `WillTerminate`), `GraphicSurfacePage` launch on Mac Catalyst in `App.xaml.cs` and `MauiProgram.cs`, CoreGraphics `SampleTextureLoader` sidecar PNG decoding (`1008x752`), 6 `SilkNativeContextLifetimeTests` unit tests, updated `MacCatalystGraphicSurfacePage` + `MacCatalystSampleAppTests`, and runtime GPU validation evidence under `artifacts/apple/stage-09/`.
 
 ### DoD
 
-- [ ] Implement the Mac Catalyst native Silk graphics surface.
-- [ ] Select and implement the supported Mac Catalyst graphics context path required by Silk.NET.
-- [ ] Integrate the native surface with MAUI Mac Catalyst lifecycle and layout.
-- [ ] Handle context/surface creation, resize, suspension, recreation and disposal.
-- [ ] Reuse the existing `IRenderDevice`/`IRenderer3D` contracts.
-- [ ] Render the existing sample scene on a real Mac Catalyst target.
-- [ ] Validate mesh upload, indexed drawing, depth and culling.
-- [ ] Validate the GLB/sidecar texture runtime path.
-- [ ] Validate camera interaction and runtime metrics.
-- [ ] Validate graphics-surface recreation without stale GPU-resource use.
-- [ ] Add focused platform tests where feasible.
-- [ ] Document the supported Mac Catalyst/macOS matrix and known limitations.
-- [ ] Confirm Android, Windows and iOS paths remain functional.
+- [x] Implement the Mac Catalyst native Silk graphics surface (`SilkMacSurfaceView` + `CAOpenGLLayer` / CGL OpenGL 4.1 core profile).
+- [x] Select and implement the supported Mac Catalyst graphics context path required by Silk.NET (`Silk.NET.OpenGL` with CGL `kCGLOGLPVersion_GL4_Core` and `isOpenGles: false` `#version 330 core` shaders).
+- [x] Integrate the native surface with MAUI Mac Catalyst lifecycle and layout.
+- [x] Handle context/surface creation, resize, suspension, recreation and disposal.
+- [x] Reuse the existing `IRenderDevice`/`IRenderer3D` contracts.
+- [x] Render the existing sample scene on a real Mac Catalyst target (`macOS 15.6.1`, `Intel(R) UHD Graphics 630`, OpenGL `4.1 INTEL-23.7.2`).
+- [x] Validate mesh upload, indexed drawing, depth and culling (`1` indexed draw call, `20,000` triangles, 24-bit depth buffer).
+- [x] Validate the GLB/sidecar texture runtime path (`toyota-gazoo-racing-wrt-gr-yaris-1-10.glb` + `1008x752` PNG).
+- [x] Validate camera interaction and runtime metrics (orbit, zoom, resize from `1330x914` to `1247x748`, live FPS/frame-time/draw-call/triangle diagnostics).
+- [x] Validate graphics-surface recreation without stale GPU-resource use (two repeated suspend/recreate cycles with `ContextLost` raised while `current=True`).
+- [x] Add focused platform tests where feasible (`SilkNativeContextLifetimeTests`, updated `SilkGraphicsBackendTests`, `MacCatalystSampleAppTests`).
+- [x] Document the supported Mac Catalyst/macOS matrix and known limitations.
+- [x] Confirm Android, Windows and iOS paths remain functional.
 
 ## Stage 10 — cross-platform graphics validation and stabilization
 

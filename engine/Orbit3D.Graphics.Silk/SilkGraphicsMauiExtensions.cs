@@ -7,12 +7,12 @@ namespace Orbit3D.Graphics.Silk;
 /// <summary>Registers the native graphics-surface handler for supported MAUI platforms.</summary>
 public static class SilkGraphicsMauiExtensions
 {
-    /// <summary>Registers a native Silk graphics surface for Android, iOS or Windows.</summary>
+    /// <summary>Registers a native Silk graphics surface for Android, iOS, Mac Catalyst or Windows.</summary>
     public static MauiAppBuilder UseSilkGraphics(this MauiAppBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         if (!SilkGraphicsPlatformSupport.IsCurrentPlatformSupported())
-            throw new PlatformNotSupportedException("The Silk MAUI surface currently supports Android OpenGL ES 3, iOS OpenGL ES 3 and Windows OpenGL 3.3.");
+            throw new PlatformNotSupportedException("The Silk MAUI surface currently supports Android OpenGL ES 3, iOS OpenGL ES 3, Mac Catalyst OpenGL 4.1 core and Windows OpenGL 3.3.");
 #if ANDROID
         builder.UseOrbit3DEngine();
         builder.ConfigureMauiHandlers(handlers =>
@@ -35,13 +35,23 @@ public static class SilkGraphicsMauiExtensions
             ios.OnActivated(_ => SilkIosSurfaceView.ResumeAll());
         }));
         return builder;
+#elif MACCATALYST
+        builder.UseOrbit3DEngine();
+        builder.ConfigureMauiHandlers(handlers =>
+            handlers.AddHandler<SilkGraphicsSurface, SilkGraphicsSurfaceHandler>());
+        builder.ConfigureLifecycleEvents(events => events.AddiOS(ios =>
+        {
+            ios.SceneDidDisconnect(_ => SilkMacSurfaceView.SuspendAll());
+            ios.WillTerminate(_ => SilkMacSurfaceView.ReleaseAll());
+        }));
+        return builder;
 #elif WINDOWS
         builder.UseOrbit3DEngine();
         builder.ConfigureMauiHandlers(handlers =>
             handlers.AddHandler<SilkGraphicsSurface, SilkGraphicsSurfaceHandler>());
         return builder;
 #else
-        throw new PlatformNotSupportedException("The Silk MAUI surface currently supports Android OpenGL ES 3, iOS OpenGL ES 3 and Windows OpenGL 3.3.");
+        throw new PlatformNotSupportedException("The Silk MAUI surface currently supports Android OpenGL ES 3, iOS OpenGL ES 3, Mac Catalyst OpenGL 4.1 core and Windows OpenGL 3.3.");
 #endif
     }
 }

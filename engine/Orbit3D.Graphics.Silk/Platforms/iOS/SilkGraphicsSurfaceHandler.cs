@@ -152,8 +152,10 @@ public sealed class SilkIosSurfaceView : UIView
             if (Window is null)
                 return;
 
+            var hadContext = nativeContext is not null;
             InitializeGraphicsContext();
-            UpdateSurfaceDimensions(force: true);
+            if (hadContext)
+                UpdateSurfaceDimensions(force: true);
             if (displayLink is not null)
                 displayLink.Paused = false;
         }
@@ -241,6 +243,10 @@ public sealed class SilkIosSurfaceView : UIView
                 },
                 isOpenGles: true);
 
+            var gl = graphicsContext.Api;
+            Console.WriteLine(
+                $"[SilkIos] GL context: version='{gl.GetStringS(StringName.Version)}' renderer='{gl.GetStringS(StringName.Renderer)}' " +
+                $"glsl='{gl.GetStringS(StringName.ShadingLanguageVersion)}' scale={UIScreen.MainScreen.Scale:0.##}");
             surface.RaiseContextCreated(graphicsContext);
             if (Bounds.Width > 0 && Bounds.Height > 0)
                 UpdateSurfaceDimensions(force: true);

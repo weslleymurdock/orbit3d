@@ -44,6 +44,18 @@ The Mac Catalyst `SilkGraphicsSurfaceHandler` and `SilkMacSurfaceView` (`CAOpenG
 - Ensures deterministic GPU resource cleanup on surface suspension, replacement, or disposal by making the retained `CGLContextObj` current (`CGLSetCurrentContext`) before raising `ContextLost`, covered by 6 unit tests in `SilkNativeContextLifetimeTests` (51 total `Orbit3D.Engine.Tests` passing).
 - Validated on the remote macOS host (`macOS 15.6.1`, `Xcode 26.6`, `Intel(R) UHD Graphics 630`, OpenGL `4.1 INTEL-23.7.2`, GLSL `4.10`). Because Remote - SSH executes in a non-GUI `Background` audit session where macOS `screencapture` cannot capture the WindowServer display when no interactive console session is unlocked, `SilkMacSurfaceView` includes an opt-in FBO readback capture hook (`ORBIT3D_SILK_CAPTURE_DIR`) and `GraphicSurfacePage` includes an opt-in validation command pump (`ORBIT3D_COMMAND_FILE`), both active only when their respective environment variables are set and living inside the App Sandbox container (`~/Library/Containers/com.remotecodehub.silktrianglesample/Data/tmp/orbit3d-capture`). Captured PNG frames and logs under `artifacts/apple/stage-09/` verify initial GLB + sidecar PNG rendering (`1` indexed draw call, `20,000` triangles, `1330x914` viewport), camera orbit and zoom, window resize (`1247x748`), and two repeated surface suspension/recreation cycles without stale GPU resource usage.
 
+## Stage 10 cross-platform graphics validation status
+Stage 10 completed the cross-platform rendering baseline across all four supported targets:
+- **Windows** (`net10.0-windows10.0.19041.0`): WGL OpenGL 3.3 Core Profile. Validated on Windows 11 workstation. Full lifecycle executed with initial render, camera orbit/zoom, window resize, and 2 context loss/recreation cycles (`count=1,2,3`, `cpuAssetCached=True`, single GPU mesh and texture upload per context). 9 UI tests in `SilkTriangleSample.UITests` passed.
+- **Android** (`net10.0-android`): EGL OpenGL ES 3.0. Validated on physical device Xiaomi Redmi Note 8 (`M1908C3JGG`, Android 11 / API 30). Full lifecycle executed with initial render, camera orbit/zoom, surface resize, activity pause/resume, and 2 context loss/recreation cycles (`count=1,2,3`, `cpuAssetCached=True`, single GPU mesh and texture upload per context).
+- **iOS** (`net10.0-ios`): EAGL OpenGL ES 3.0. Validated on iPhone Air Simulator (`34E134C7-25BB-4925-8A3A-65674A943E87`) on Intel macOS 15.6.1 host via automated SSH/SCP workflow (`validate-apple.ps1` with `-p:_ValidateXcodeVersion=false`). Full lifecycle executed with initial render, camera orbit/zoom, surface resize (960x780 -> 1260x2195), and 2 context loss/recreation cycles (`count=1,2,3`, `cpuAssetCached=True`, single GPU mesh and texture upload per context).
+- **Mac Catalyst** (`net10.0-maccatalyst`): CGL OpenGL 4.1 Core Profile (`4.1 INTEL-23.7.2`, Intel UHD Graphics 630). Validated on macOS 15.6.1 host. Full build, launch, surface resize (1247x784 -> 1247x748), GLB and sidecar PNG upload (60,000 vertices, 60,000 indices, 1008x752 texture), and first rendered frame (1 indexed draw, 20,000 triangles).
+- **Unit & Integration Tests**:
+  - `Orbit.Engine.Tests` (2D engine): 2/2 tests passed on `net10.0`.
+  - `Orbit3D.Engine.Tests` (3D engine): 55/55 passed on `net10.0`, 67/67 passed on `net10.0-windows10.0.19041.0`.
+  - `SilkTriangleSample.UITests`: 9/9 UI automation tests passed.
+- All evidence artifacts are structured in `artifacts/stage-10/{windows,android,ios,maccatalyst,summary}/`.
+
 ## Integration tests
 Where practical, validate Assimp imports, hierarchy conversion, texture resolution and GPU resource creation. Ordinary unit tests must not require a platform graphics device.
 

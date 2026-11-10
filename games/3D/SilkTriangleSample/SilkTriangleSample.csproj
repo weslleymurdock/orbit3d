@@ -20,14 +20,6 @@
 		<Nullable>enable</Nullable>
 		<MauiVersion>10.0.110</MauiVersion>
 
-		<!-- Enable XAML source generation for faster build times and improved performance.
-		     This generates C# code from XAML at compile time instead of runtime inflation.
-		     To disable, remove this line.
-		     For individual files, you can override by setting Inflator metadata:
-		       <MauiXaml Update="MyPage.xaml" Inflator="Default" /> (reverts to defaults: Runtime for Debug, XamlC for Release)
-		       <MauiXaml Update="MyPage.xaml" Inflator="Runtime" /> (force runtime inflation) -->
-		<MauiXamlInflator>SourceGen</MauiXamlInflator>
-
 		<!-- Display name -->
 		<ApplicationTitle>SilkTriangleSample</ApplicationTitle>
 
@@ -68,7 +60,37 @@
 
 		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+
+		<None Include="Resources\AppIcon\appiconItunesArtwork.png" />
 	</ItemGroup>
+
+	<Target Name="_FixMissingAppIconAssets"
+	        BeforeTargets="_CoreCompileImageAssets"
+	        Condition="'$(TargetFramework)' == 'net10.0-maccatalyst'">
+		<PropertyGroup>
+			<_FixScript>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '..', '..', '..', 'tools', 'remote', 'apple', 'fix-appicon.py'))</_FixScript>
+		</PropertyGroup>
+		<Exec Command="python3 &quot;$(_FixScript)&quot; &quot;$(MSBuildProjectDirectory)&quot; &quot;$(MSBuildProjectDirectory)/Resources/AppIcon/appiconItunesArtwork.png&quot;"
+		      Condition="!$([MSBuild]::IsOSPlatform('windows'))" />
+	</Target>
+
+	<Target Name="_BypassActoolForIosSimulator"
+	        BeforeTargets="_CoreCompileImageAssets"
+	        Condition="'$(TargetFramework)' == 'net10.0-ios'">
+		<PropertyGroup>
+			<_PartialPlist>$(IntermediateOutputPath)actool\partial-info.plist</_PartialPlist>
+		</PropertyGroup>
+		<MakeDir Directories="$(IntermediateOutputPath)actool" />
+		<WriteLinesToFile File="$(_PartialPlist)"
+		                  Lines="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&lt;!DOCTYPE plist PUBLIC &quot;-//Apple//DTD PLIST 1.0//EN&quot; &quot;http://www.apple.com/DTDs/PropertyList-1.0.dtd&quot;&gt;&lt;plist version=&quot;1.0&quot;&gt;&lt;dict&gt;&lt;/dict&gt;&lt;/plist&gt;"
+		                  Overwrite="true" />
+		<ItemGroup>
+			<FileWrites Include="$(_PartialPlist)" />
+			<_ActoolPartialPLists Include="$(_PartialPlist)" />
+			<ImageAsset Remove="@(ImageAsset)" />
+		</ItemGroup>
+		<Message Importance="High" Text="Cleared ImageAsset items for iOS simulator to bypass actool." />
+	</Target>
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
@@ -76,6 +98,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\..\..\engine\Orbit3D.Engine\Orbit3D.Engine.csproj" />
 	  <ProjectReference Include="..\..\..\engine\Orbit3D.Graphics.Silk\Orbit3D.Graphics.Silk.csproj" />
 	</ItemGroup>
 

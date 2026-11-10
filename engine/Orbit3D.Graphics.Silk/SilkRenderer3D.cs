@@ -261,7 +261,13 @@ public sealed class SilkRenderer3D : IRenderer3D
             (uint)indexCount,
             indices.Description.Format == IndexFormat.UInt16 ? DrawElementsType.UnsignedShort : DrawElementsType.UnsignedInt,
             indexOffset);
-        renderMetricsTracker.RecordDraw(indexCount, indexCount / 3);
+        var triangleCount = pipeline.Description.Topology switch
+        {
+            PrimitiveTopology.TriangleList => indexCount / 3,
+            PrimitiveTopology.TriangleStrip => Math.Max(0, indexCount - 2),
+            _ => 0
+        };
+        renderMetricsTracker.RecordDraw(indexCount, triangleCount);
         gl.BindVertexArray(0);
     }
 
@@ -282,6 +288,8 @@ public sealed class SilkRenderer3D : IRenderer3D
     {
         if (IsDisposed)
             throw new ObjectDisposedException(nameof(SilkRenderer3D));
+        if (Device.IsDisposed)
+            throw new ObjectDisposedException(Device.GetType().Name);
     }
 
     private void ValidateOwned(IGraphicsResource resource)

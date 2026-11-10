@@ -352,7 +352,7 @@ public sealed class SilkMacSurfaceView : UIView
 
         surface.RaiseRenderFrame();
         frameCounter++;
-        if (CaptureDirectory is not null && frameCounter % 10 == 0)
+        if (CaptureDirectory is not null)
             TryCaptureRequestedFrame(gl, allocatedWidth, allocatedHeight);
         gl.Flush();
     }

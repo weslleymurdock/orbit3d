@@ -34,12 +34,34 @@ public class SilkNativeContextLifetimeTests
         }
     }
 
-    private static (SilkNativeContextLifetime Lifetime, SilkGraphicsSurface Surface, NativeContextTable Table) Create()
+    private sealed class SurfaceEvents
     {
-        var surface = new SilkGraphicsSurface();
+        public event EventHandler<SilkGraphicsContextEventArgs>? ContextCreated;
+        public event EventHandler<SilkGraphicsContextEventArgs>? ContextLost;
+
+        public void RaiseContextCreated(SilkGraphicsContext context) =>
+            ContextCreated?.Invoke(this, new SilkGraphicsContextEventArgs(context));
+
+        public void RaiseContextLost(SilkGraphicsContext context)
+        {
+            try
+            {
+                ContextLost?.Invoke(this, new SilkGraphicsContextEventArgs(context));
+            }
+            finally
+            {
+                context.DisposeApi();
+            }
+        }
+    }
+
+    private static (SilkNativeContextLifetime Lifetime, SurfaceEvents Surface, NativeContextTable Table) Create()
+    {
+        var surface = new SurfaceEvents();
         var table = new NativeContextTable();
         var lifetime = new SilkNativeContextLifetime(
-            surface,
+            surface.RaiseContextCreated,
+            surface.RaiseContextLost,
             _ => 0,
             () => table.Current,
             table.SetCurrent,

@@ -12,9 +12,24 @@ public sealed class MeshRenderResource
     {
         ArgumentNullException.ThrowIfNull(vertexBuffer);
         ArgumentNullException.ThrowIfNull(indexBuffer);
+        ObjectDisposedException.ThrowIf(vertexBuffer.IsDisposed, vertexBuffer);
+        ObjectDisposedException.ThrowIf(indexBuffer.IsDisposed, indexBuffer);
+        if (vertexBuffer.Owner is null || !ReferenceEquals(vertexBuffer.Owner, indexBuffer.Owner))
+            throw new ArgumentException("The vertex and index buffers must belong to the same render device.", nameof(indexBuffer));
+
         VertexBuffer = vertexBuffer;
         IndexBuffer = indexBuffer;
     }
+
+    /// <summary>
+    /// Gets the device that owns this mesh resource.
+    /// </summary>
+    public IRenderDevice Owner => VertexBuffer.Owner;
+
+    /// <summary>
+    /// Gets a value indicating whether either underlying GPU buffer has been disposed.
+    /// </summary>
+    public bool IsDisposed => VertexBuffer.IsDisposed || IndexBuffer.IsDisposed;
 
     /// <summary>
     /// Gets the device-owned vertex buffer.
@@ -57,11 +72,22 @@ public sealed class GpuResourceCache
     public IRenderDevice? Device => currentDevice;
 
     /// <summary>
+    /// Gets the number of mesh resources currently stored in the cache.
+    /// </summary>
+    public int CachedMeshCount => meshCache.Count;
+
+    /// <summary>
+    /// Gets the number of texture resources currently stored in the cache.
+    /// </summary>
+    public int CachedTextureCount => textureCache.Count;
+
+    /// <summary>
     /// Associates the cache with a new device and invalidates stale resources from any prior device.
     /// </summary>
     public void SetDevice(IRenderDevice device)
     {
         ArgumentNullException.ThrowIfNull(device);
+        ObjectDisposedException.ThrowIf(device.IsDisposed, device);
 
         if (currentDevice is not null && !ReferenceEquals(currentDevice, device))
         {
@@ -177,18 +203,21 @@ public sealed class GpuResourceCache
     /// </summary>
     public void Clear()
     {
-        foreach (var resource in meshCache.Values)
+        if (currentDevice is not null && !currentDevice.IsDisposed)
         {
-            if (ReferenceEquals(resource.VertexBuffer.Owner, currentDevice) && !resource.VertexBuffer.IsDisposed)
-                resource.VertexBuffer.Dispose();
-            if (ReferenceEquals(resource.IndexBuffer.Owner, currentDevice) && !resource.IndexBuffer.IsDisposed)
-                resource.IndexBuffer.Dispose();
-        }
+            foreach (var resource in meshCache.Values)
+            {
+                if (ReferenceEquals(resource.VertexBuffer.Owner, currentDevice) && !resource.VertexBuffer.IsDisposed)
+                    resource.VertexBuffer.Dispose();
+                if (ReferenceEquals(resource.IndexBuffer.Owner, currentDevice) && !resource.IndexBuffer.IsDisposed)
+                    resource.IndexBuffer.Dispose();
+            }
 
-        foreach (var resource in textureCache.Values)
-        {
-            if (ReferenceEquals(resource.Owner, currentDevice) && !resource.IsDisposed)
-                resource.Dispose();
+            foreach (var resource in textureCache.Values)
+            {
+                if (ReferenceEquals(resource.Owner, currentDevice) && !resource.IsDisposed)
+                    resource.Dispose();
+            }
         }
 
         meshCache.Clear();

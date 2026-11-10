@@ -9,7 +9,8 @@ namespace Orbit3D.Graphics.Silk;
 /// </summary>
 internal sealed class SilkNativeContextLifetime
 {
-    private readonly SilkGraphicsSurface surface;
+    private readonly Action<SilkGraphicsContext> raiseContextCreated;
+    private readonly Action<SilkGraphicsContext> raiseContextLost;
     private readonly Func<string, nint> getProcAddress;
     private readonly Func<nint> getCurrentContext;
     private readonly Action<nint> setCurrentContext;
@@ -35,8 +36,30 @@ internal sealed class SilkNativeContextLifetime
         Action<nint> retainContext,
         Action<nint> releaseContext,
         bool isOpenGles)
+        : this(
+            surface is not null ? surface.RaiseContextCreated : throw new ArgumentNullException(nameof(surface)),
+            surface.RaiseContextLost,
+            getProcAddress,
+            getCurrentContext,
+            setCurrentContext,
+            retainContext,
+            releaseContext,
+            isOpenGles)
     {
-        this.surface = surface ?? throw new ArgumentNullException(nameof(surface));
+    }
+
+    internal SilkNativeContextLifetime(
+        Action<SilkGraphicsContext> raiseContextCreated,
+        Action<SilkGraphicsContext> raiseContextLost,
+        Func<string, nint> getProcAddress,
+        Func<nint> getCurrentContext,
+        Action<nint> setCurrentContext,
+        Action<nint> retainContext,
+        Action<nint> releaseContext,
+        bool isOpenGles)
+    {
+        this.raiseContextCreated = raiseContextCreated ?? throw new ArgumentNullException(nameof(raiseContextCreated));
+        this.raiseContextLost = raiseContextLost ?? throw new ArgumentNullException(nameof(raiseContextLost));
         this.getProcAddress = getProcAddress ?? throw new ArgumentNullException(nameof(getProcAddress));
         this.getCurrentContext = getCurrentContext ?? throw new ArgumentNullException(nameof(getCurrentContext));
         this.setCurrentContext = setCurrentContext ?? throw new ArgumentNullException(nameof(setCurrentContext));
@@ -76,7 +99,7 @@ internal sealed class SilkNativeContextLifetime
             present: null,
             isOpenGles,
             presentAfterRenderCallback: true);
-        surface.RaiseContextCreated(context);
+        raiseContextCreated(context);
         return true;
     }
 
@@ -99,7 +122,7 @@ internal sealed class SilkNativeContextLifetime
         {
             setCurrentContext(lostNative);
             if (lostContext is not null)
-                surface.RaiseContextLost(lostContext);
+                raiseContextLost(lostContext);
         }
         finally
         {

@@ -19,12 +19,25 @@ public sealed class GraphicSurfacePage : ContentPage
     private readonly Label statusLabel;
     private readonly Label diagnosticsLabel;
     private readonly object renderLock = new();
+    private static readonly object LogFileLock = new();
+    private static readonly AssetImportSettings DefaultImportSettings = new()
+    {
+        GenerateNormals = true,
+        Triangulate = true,
+        JoinIdenticalVertices = true,
+        FlipUVs = true
+    };
     private static readonly string? ValidationCommandFile = Environment.GetEnvironmentVariable("ORBIT3D_COMMAND_FILE");
     private static readonly bool LogDiagnosticsText = Environment.GetEnvironmentVariable("ORBIT3D_LOG_DIAGNOSTICS") == "1";
     private bool importStarted;
+    private bool commandPumpStarted;
     private bool firstRenderedFrameLogged;
     private long lastMetricsUpdateTimestamp;
     private long totalRenderedFrames;
+    private int contextCreationCount;
+    private int contextLossCount;
+    private int gpuMeshUploadCount;
+    private int gpuTextureUploadCount;
     private Scene3D? scene;
     private SilkGraphicsContext? graphicsContext;
     private IRenderDevice? device;
@@ -122,8 +135,7 @@ public sealed class GraphicSurfacePage : ContentPage
             var model = await Task.Run(() =>
             {
                 using var stream = new MemoryStream(assetData, writable: false);
-                var settings = new AssetImportSettings { GenerateNormals = true, Triangulate = true, JoinIdenticalVertices = true, FlipUVs = true };
-                return assetCache.GetOrAdd(ModelAssetName, () => modelImporter.Import(stream, "glb"), settings);
+                return assetCache.GetOrAdd(ModelAssetName, () => modelImporter.Import(stream, "glb"), DefaultImportSettings);
             });
 
             byte[] textureData;
@@ -162,18 +174,28 @@ public sealed class GraphicSurfacePage : ContentPage
                 Intensity = 1.3f
             });
 
+            bool contextReady;
+            int currentWidth;
+            int currentHeight;
             lock (renderLock)
             {
                 scene = runtimeScene;
                 loadedMeshCount = model.Meshes.Count;
                 loadedTextureWidth = texture.Width;
                 loadedTextureHeight = texture.Height;
+                contextReady = graphicsContext is not null;
+                currentWidth = surfaceWidth;
+                currentHeight = surfaceHeight;
+                Interlocked.Exchange(ref lastMetricsUpdateTimestamp, 0);
             }
 
-            var renderQueue = runtimeScene.BuildRenderQueue(runtimeScene.MainCamera, surfaceWidth, surfaceHeight);
+            var renderQueue = runtimeScene.BuildRenderQueue(runtimeScene.MainCamera, currentWidth, currentHeight);
             LogDiagnostic($"Imported {ModelAssetName}: {model.Meshes.Count} mesh(es), {texture.Width}x{texture.Height} sidecar texture, {renderQueue.Count} queued item(s).");
-            SetStatusText($"Loaded GLB + sidecar PNG | {renderQueue.Count} mesh(es)");
-            SetDiagnosticsText($"Phase=AssetsLoaded;Context={(graphicsContext != null ? "Ready" : "Pending")};Assets=Loaded;Meshes={model.Meshes.Count};Texture={texture.Width}x{texture.Height};DrawCalls=0;Frames=0");
+            if (Interlocked.Read(ref totalRenderedFrames) == 0)
+            {
+                SetStatusText($"Loaded GLB + sidecar PNG | {renderQueue.Count} mesh(es)");
+                SetDiagnosticsText($"Phase=AssetsLoaded;Context={(contextReady ? "Ready" : "Pending")};Assets=Loaded;Meshes={model.Meshes.Count};Texture={texture.Width}x{texture.Height};DrawCalls=0;Frames=0");
+            }
         }
         catch (Exception exception)
         {
@@ -184,27 +206,32 @@ public sealed class GraphicSurfacePage : ContentPage
     }
 
     /// <summary>
-    /// Validation hook, active only when <c>ORBIT3D_COMMAND_FILE</c> is set: applies <c>orbit &lt;yaw&gt; &lt;pitch&gt;</c>, <c>zoom &lt;delta&gt;</c> and
-    /// <c>resize &lt;width&gt; &lt;height&gt;</c> lines to the same camera controller and window that the gesture handlers use, then deletes the file.
-    /// It exists so camera and resize behavior can be exercised on hosts where synthetic pointer input is not permitted.
+    /// Validation hook: applies <c>orbit &lt;yaw&gt; &lt;pitch&gt;</c>, <c>zoom &lt;delta&gt;</c>,
+    /// <c>resize &lt;width&gt; &lt;height&gt;</c>, <c>pause</c>, <c>suspend</c>, <c>resume</c>, and <c>release</c> lines
+    /// to the same camera controller, window, and surface that interactive controls use, then deletes the command file.
     /// </summary>
     private void StartValidationCommandPump()
     {
-        if (string.IsNullOrEmpty(ValidationCommandFile) || Dispatcher is null)
+        if (commandPumpStarted || Dispatcher is null)
             return;
 
+        var commandPath = !string.IsNullOrWhiteSpace(ValidationCommandFile)
+            ? ValidationCommandFile
+            : Path.Combine(FileSystem.CacheDirectory, "orbit3d-commands.txt");
+
+        commandPumpStarted = true;
         var timer = Dispatcher.CreateTimer();
         timer.Interval = TimeSpan.FromMilliseconds(250);
         timer.Tick += (_, _) =>
         {
-            if (!File.Exists(ValidationCommandFile))
+            if (!File.Exists(commandPath))
                 return;
 
             string[] lines;
             try
             {
-                lines = File.ReadAllLines(ValidationCommandFile);
-                File.Delete(ValidationCommandFile);
+                lines = File.ReadAllLines(commandPath);
+                File.Delete(commandPath);
             }
             catch (IOException exception)
             {
@@ -213,45 +240,89 @@ public sealed class GraphicSurfacePage : ContentPage
             }
 
             foreach (var line in lines)
-                ApplyValidationCommand(line.Trim());
+            {
+                try
+                {
+                    ApplyValidationCommand(line.Trim());
+                }
+                catch (Exception exception)
+                {
+                    var actual = exception is System.Reflection.TargetInvocationException tie && tie.InnerException is not null
+                        ? tie.InnerException
+                        : exception;
+                    LogDiagnostic($"Validation command '{line}' threw {actual.GetType().Name}: {actual.Message} at {actual.StackTrace}");
+                }
+            }
         };
         timer.Start();
     }
 
     private void ApplyValidationCommand(string line)
     {
-        var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var parts = line.Split([' ', ':', ','], StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
             return;
 
         var inv = CultureInfo.InvariantCulture;
-        switch (parts[0])
+        switch (parts[0].ToLowerInvariant())
         {
             case "orbit" when parts.Length == 3:
                 cameraController.Orbit(float.Parse(parts[1], inv), float.Parse(parts[2], inv));
+                Interlocked.Exchange(ref lastMetricsUpdateTimestamp, 0);
                 break;
             case "zoom" when parts.Length == 2:
                 cameraController.Zoom(float.Parse(parts[1], inv));
+                Interlocked.Exchange(ref lastMetricsUpdateTimestamp, 0);
                 break;
-            case "resize" when parts.Length == 3 && Window is not null:
-                Window.Width = double.Parse(parts[1], inv);
-                Window.Height = double.Parse(parts[2], inv);
+            case "resize" when parts.Length == 3:
+                var targetWidth = double.Parse(parts[1], inv);
+                var targetHeight = double.Parse(parts[2], inv);
+                if (targetWidth <= 0 || targetHeight <= 0)
+                {
+                    surface.WidthRequest = -1;
+                    surface.HeightRequest = -1;
+                    surface.HorizontalOptions = LayoutOptions.Fill;
+                    surface.VerticalOptions = LayoutOptions.Fill;
+                }
+                else
+                {
+#if WINDOWS || MACCATALYST
+                    if (Window is not null)
+                    {
+                        Window.Width = targetWidth;
+                        Window.Height = targetHeight;
+                    }
+#else
+                    surface.HorizontalOptions = LayoutOptions.Center;
+                    surface.VerticalOptions = LayoutOptions.Center;
+                    surface.WidthRequest = targetWidth;
+                    surface.HeightRequest = targetHeight;
+#endif
+                }
+                Interlocked.Exchange(ref lastMetricsUpdateTimestamp, 0);
+                break;
+            case "resize" when parts.Length == 2 && string.Equals(parts[1], "reset", StringComparison.OrdinalIgnoreCase):
+                surface.WidthRequest = -1;
+                surface.HeightRequest = -1;
+                surface.HorizontalOptions = LayoutOptions.Fill;
+                surface.VerticalOptions = LayoutOptions.Fill;
+                Interlocked.Exchange(ref lastMetricsUpdateTimestamp, 0);
                 break;
             case "pause":
-                if (surface.Handler?.PlatformView is not null)
-                    surface.Handler.PlatformView.GetType().GetMethod("PauseRendering")?.Invoke(surface.Handler.PlatformView, null);
+                InvokeSurfaceMethod("PauseRendering");
                 break;
             case "suspend":
-                if (surface.Handler?.PlatformView is not null)
-                    surface.Handler.PlatformView.GetType().GetMethod("SuspendSurface")?.Invoke(surface.Handler.PlatformView, null);
+                InvokeSurfaceMethod("SuspendSurface");
                 break;
             case "resume":
-                if (surface.Handler?.PlatformView is not null)
-                    surface.Handler.PlatformView.GetType().GetMethod("ResumeSurface")?.Invoke(surface.Handler.PlatformView, null);
+                InvokeSurfaceMethod("ResumeSurface");
                 break;
             case "release":
-                if (surface.Handler?.PlatformView is not null)
-                    surface.Handler.PlatformView.GetType().GetMethod("ReleaseSurface")?.Invoke(surface.Handler.PlatformView, null);
+                InvokeSurfaceMethod("ReleaseSurface");
+                break;
+            case "close":
+            case "quit":
+                Application.Current?.Quit();
                 break;
             default:
                 LogDiagnostic($"Unknown validation command '{line}'.");
@@ -259,6 +330,21 @@ public sealed class GraphicSurfacePage : ContentPage
         }
 
         LogDiagnostic($"Applied validation command '{line}'.");
+    }
+
+    private void InvokeSurfaceMethod(string methodName)
+    {
+        var platformView = surface.Handler?.PlatformView;
+        var platformMethod = platformView?.GetType().GetMethod(methodName);
+        if (platformMethod is not null)
+        {
+            platformMethod.Invoke(platformView, null);
+            return;
+        }
+
+        var handler = surface.Handler;
+        var handlerMethod = handler?.GetType().GetMethod(methodName);
+        handlerMethod?.Invoke(handler, null);
     }
 
     protected override void OnDisappearing()
@@ -269,43 +355,78 @@ public sealed class GraphicSurfacePage : ContentPage
 
     private void OnContextCreated(object? sender, SilkGraphicsContextEventArgs args)
     {
-        graphicsContext = args.Context;
-        LogDiagnostic("Silk graphics context created.");
-        device = SilkGraphicsFactory.CreateDevice(args.Context);
-        gpuResourceCache.SetDevice(device);
-        renderer = SilkGraphicsFactory.CreateRenderer(device);
-        var shaderProgram = device.CreateShaderProgram(new ShaderProgramDescription(ShaderProgramKind.BasicLitTextured, "RuntimeSceneShader"));
-        pipeline = device.CreatePipeline(new RenderPipelineDescription(shaderProgram, cullMode: CullMode.Back));
-        renderer.SetPipeline(pipeline);
-        renderer.Resize(surfaceWidth, surfaceHeight);
+        bool assetsLoaded;
+        int creationNumber;
+        bool cpuCached;
+        lock (renderLock)
+        {
+            creationNumber = ++contextCreationCount;
+            graphicsContext = args.Context;
+            device = SilkGraphicsFactory.CreateDevice(args.Context);
+            gpuResourceCache.SetDevice(device);
+            renderer = SilkGraphicsFactory.CreateRenderer(device);
+            var shaderProgram = device.CreateShaderProgram(new ShaderProgramDescription(ShaderProgramKind.BasicLitTextured, "RuntimeSceneShader"));
+            pipeline = device.CreatePipeline(new RenderPipelineDescription(shaderProgram, cullMode: CullMode.Back));
+            renderer.SetPipeline(pipeline);
+            renderer.Resize(surfaceWidth, surfaceHeight);
+            firstRenderedFrameLogged = false;
+            Interlocked.Exchange(ref lastMetricsUpdateTimestamp, 0);
+            assetsLoaded = scene is not null;
+            cpuCached = assetCache.TryGet(ModelAssetName, DefaultImportSettings, out _);
+        }
+
+        LogDiagnostic($"Silk graphics context created (count={creationNumber}, cpuAssetCached={cpuCached}).");
         SetStatusText("Runtime renderer ready");
-        SetDiagnosticsText($"Phase=ContextCreated;Context=Ready;Device=Silk;Assets={(scene != null ? "Loaded" : "Pending")};DrawCalls=0;Frames=0");
+        SetDiagnosticsText($"Phase=ContextCreated;Context=Ready;Device=Silk;Assets={(assetsLoaded ? "Loaded" : "Pending")};DrawCalls=0;Frames=0");
     }
 
     private void OnContextLost(object? sender, SilkGraphicsContextEventArgs args)
     {
-        if (ReferenceEquals(graphicsContext, args.Context) && args.Context.IsCurrent)
-            gpuResourceCache.Clear();
-        else
-            gpuResourceCache.Invalidate();
-        LogDiagnostic($"Silk graphics context lost; current={args.Context.IsCurrent}.");
-        renderer?.Dispose();
-        device?.Dispose();
-        renderer = null;
-        device = null;
-        pipeline = null;
-        graphicsContext = null;
+        int lossNumber;
+        int cachedMeshesBefore;
+        int cachedTexturesBefore;
+        bool wasCurrent;
+        lock (renderLock)
+        {
+            lossNumber = ++contextLossCount;
+            cachedMeshesBefore = gpuResourceCache.CachedMeshCount;
+            cachedTexturesBefore = gpuResourceCache.CachedTextureCount;
+            wasCurrent = args.Context.IsCurrent;
+            if (ReferenceEquals(graphicsContext, args.Context) && wasCurrent)
+                gpuResourceCache.Clear();
+            else
+                gpuResourceCache.Invalidate();
+
+            renderer?.Dispose();
+            device?.Dispose();
+            renderer = null;
+            device = null;
+            pipeline = null;
+            graphicsContext = null;
+            firstRenderedFrameLogged = false;
+            Interlocked.Exchange(ref lastMetricsUpdateTimestamp, 0);
+        }
+
+        LogDiagnostic($"Silk graphics context lost; current={wasCurrent} (count={lossNumber}, cachedMeshes={cachedMeshesBefore}, cachedTextures={cachedTexturesBefore}).");
         SetStatusText("Graphics context lost; recreating GPU resources on next frame.");
         SetDiagnosticsText("Phase=ContextLost;Context=Lost;Assets=Loaded;DrawCalls=0;Frames=0");
     }
 
     private void OnSurfaceResized(object? sender, SilkGraphicsSurfaceResizedEventArgs args)
     {
-        surfaceWidth = Math.Max(args.Width, 1);
-        surfaceHeight = Math.Max(args.Height, 1);
-        LogDiagnostic($"Graphics surface resized to {surfaceWidth}x{surfaceHeight} pixels.");
-        if (renderer is not null)
-            renderer.Resize(surfaceWidth, surfaceHeight);
+        int width;
+        int height;
+        lock (renderLock)
+        {
+            surfaceWidth = Math.Max(args.Width, 1);
+            surfaceHeight = Math.Max(args.Height, 1);
+            width = surfaceWidth;
+            height = surfaceHeight;
+            renderer?.Resize(surfaceWidth, surfaceHeight);
+            Interlocked.Exchange(ref lastMetricsUpdateTimestamp, 0);
+        }
+
+        LogDiagnostic($"Graphics surface resized to {width}x{height} pixels.");
     }
 
     private void OnPanUpdated(object? sender, PanUpdatedEventArgs e)
@@ -328,69 +449,83 @@ public sealed class GraphicSurfacePage : ContentPage
 
     private void OnRenderFrame(object? sender, EventArgs args)
     {
-        if (scene is null || renderer is null || device is null || pipeline is null || surfaceWidth <= 0 || surfaceHeight <= 0)
-            return;
-
-        var activeScene = scene;
-        var camera = activeScene.MainCamera ?? CreateCamera();
-        camera.AspectRatio = surfaceWidth / (float)surfaceHeight;
-        cameraController.Apply(camera, Vector3.Zero);
-        var queue = activeScene.BuildRenderQueue(camera, surfaceWidth, surfaceHeight);
-        renderer.SetCamera(camera.ViewMatrix, camera.ProjectionMatrix);
-        var lights = activeScene.Lights.Count > 0 ? activeScene.Lights.ToArray() : [];
-        renderer.SetLights(lights);
-        renderer.BeginFrame(new Vector4(0.04f, 0.06f, 0.09f, 1f));
-
-        try
+        RenderMetrics metrics;
+        bool logFirstFrame = false;
+        lock (renderLock)
         {
-            foreach (var item in queue)
+            if (scene is null || renderer is null || device is null || pipeline is null || surfaceWidth <= 0 || surfaceHeight <= 0)
+                return;
+
+            var activeScene = scene;
+            var camera = activeScene.MainCamera ?? CreateCamera();
+            camera.AspectRatio = surfaceWidth / (float)surfaceHeight;
+            cameraController.Apply(camera, Vector3.Zero);
+            var queue = activeScene.BuildRenderQueue(camera, surfaceWidth, surfaceHeight);
+            renderer.SetCamera(camera.ViewMatrix, camera.ProjectionMatrix);
+            var lights = activeScene.Lights.Count > 0 ? activeScene.Lights.ToArray() : [];
+            renderer.SetLights(lights);
+            renderer.BeginFrame(new Vector4(0.04f, 0.06f, 0.09f, 1f));
+
+            try
             {
-                if (item.Mesh is null)
-                    continue;
-
-                var material = item.Material ?? new Material3D { BaseColor = new Vector4(0.78f, 0.84f, 1f, 1f) };
-                var meshResource = gpuResourceCache.GetOrCreateMesh(item.Mesh, (renderDevice, mesh) =>
+                foreach (var item in queue)
                 {
-                    var buffers = SilkMeshBuffers.Create(renderDevice, mesh);
-                    return new MeshRenderResource(buffers.VertexBuffer, buffers.IndexBuffer);
-                });
+                    if (item.Mesh is null)
+                        continue;
 
-                ITextureResource? textureResource = null;
-                if (material.BaseColorTexture is not null)
-                {
-                    textureResource = gpuResourceCache.GetOrCreateTexture(material.BaseColorTexture, (renderDevice, texture) =>
+                    var material = item.Material ?? new Material3D { BaseColor = new Vector4(0.78f, 0.84f, 1f, 1f) };
+                    var meshResource = gpuResourceCache.GetOrCreateMesh(item.Mesh, (renderDevice, mesh) =>
                     {
-                        if (!texture.HasPixelData)
-                            throw new InvalidOperationException($"Texture '{texture.Name}' has no decoded pixel data.");
-                        return renderDevice.CreateTexture(
-                            new TextureDescription(texture.Width, texture.Height, texture.PixelFormat),
-                            texture.Data!);
+                        var buffers = SilkMeshBuffers.Create(renderDevice, mesh);
+                        var uploadNumber = ++gpuMeshUploadCount;
+                        LogDiagnostic($"Uploaded GPU mesh '{mesh.Name}' (upload #{uploadNumber}): {buffers.VertexBuffer.Description.VertexCount} vertices, {buffers.IndexBuffer.Description.IndexCount} indices.");
+                        return new MeshRenderResource(buffers.VertexBuffer, buffers.IndexBuffer);
                     });
-                    renderer.BindTexture(0, textureResource);
-                }
-                else
-                {
-                    renderer.BindTexture(0, null!);
-                }
 
-                renderer.SetWorldMatrix(item.WorldMatrix);
-                renderer.BindMaterial(material);
-                renderer.SetPipeline(pipeline);
-                renderer.DrawIndexed(meshResource.VertexBuffer, meshResource.IndexBuffer, meshResource.IndexBuffer.Description.IndexCount);
+                    ITextureResource? textureResource = null;
+                    if (material.BaseColorTexture is not null)
+                    {
+                        textureResource = gpuResourceCache.GetOrCreateTexture(material.BaseColorTexture, (renderDevice, texture) =>
+                        {
+                            if (!texture.HasPixelData)
+                                throw new InvalidOperationException($"Texture '{texture.Name}' has no decoded pixel data.");
+                            var createdTexture = renderDevice.CreateTexture(
+                                new TextureDescription(texture.Width, texture.Height, texture.PixelFormat),
+                                texture.Data!);
+                            var uploadNumber = ++gpuTextureUploadCount;
+                            LogDiagnostic($"Uploaded GPU texture '{texture.Name}' (upload #{uploadNumber}): {texture.Width}x{texture.Height} ({texture.PixelFormat}).");
+                            return createdTexture;
+                        });
+                        renderer.BindTexture(0, textureResource);
+                    }
+                    else
+                    {
+                        renderer.BindTexture(0, null!);
+                    }
+
+                    renderer.SetWorldMatrix(item.WorldMatrix);
+                    renderer.BindMaterial(material);
+                    renderer.SetPipeline(pipeline);
+                    renderer.DrawIndexed(meshResource.VertexBuffer, meshResource.IndexBuffer, meshResource.IndexBuffer.Description.IndexCount);
+                }
             }
-        }
-        finally
-        {
-            renderer.EndFrame();
-            Interlocked.Increment(ref totalRenderedFrames);
-            var metrics = ((SilkRenderer3D)renderer).Metrics;
-            if (metrics.DrawCalls > 0 && !firstRenderedFrameLogged)
+            finally
             {
-                firstRenderedFrameLogged = true;
-                LogDiagnostic($"First rendered frame: {metrics.DrawCalls} indexed draw(s), {metrics.TriangleCount} triangle(s).");
+                renderer.EndFrame();
+                Interlocked.Increment(ref totalRenderedFrames);
+                metrics = ((SilkRenderer3D)renderer).Metrics;
+                if (metrics.DrawCalls > 0 && !firstRenderedFrameLogged)
+                {
+                    firstRenderedFrameLogged = true;
+                    logFirstFrame = true;
+                }
             }
-            UpdateMetricsStatus(metrics);
         }
+
+        if (logFirstFrame)
+            LogDiagnostic($"First rendered frame: {metrics.DrawCalls} indexed draw(s), {metrics.TriangleCount} triangle(s).");
+
+        UpdateMetricsStatus(metrics);
     }
 
     private void SetStatusText(string text)
@@ -419,6 +554,21 @@ public sealed class GraphicSurfacePage : ContentPage
         var diagnostic = $"[SilkSample] {message}";
         Debug.WriteLine(diagnostic);
         Console.WriteLine(diagnostic);
+#if ANDROID
+        Android.Util.Log.Info("Orbit3D", diagnostic);
+#endif
+        try
+        {
+            var logPath = Path.Combine(FileSystem.CacheDirectory, "orbit3d-runtime.log");
+            lock (LogFileLock)
+            {
+                File.AppendAllText(logPath, $"{DateTime.UtcNow:O} {diagnostic}{Environment.NewLine}");
+            }
+        }
+        catch
+        {
+            // Ignore file logging errors if the cache directory is unavailable.
+        }
     }
 
     private void UpdateMetricsStatus(RenderMetrics metrics)

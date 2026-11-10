@@ -211,21 +211,25 @@ Stage 09 adds the native Mac Catalyst Silk graphics surface (`CAOpenGLLayer` + C
 
 Stage 10 consolidates the four MAUI graphics targets into a single supported runtime matrix and removes platform-specific instability discovered during implementation. It focuses on lifecycle correctness, rendering consistency, resource ownership, performance instrumentation and regression coverage rather than introducing new rendering features. The stage establishes a stable cross-platform baseline before animation work begins.
 
+### Current Implementation & Validation Status
+
+- **Implemented & Validated Across 4 Platforms (`Windows`, `Android`, `iOS`, `Mac Catalyst`)**: Consolidated cross-platform rendering baseline using the Silk.NET graphics backend and backend-neutral `Orbit3D.Engine` runtime scene (`toyota-gazoo-racing-wrt-gr-yaris-1-10.glb` + sidecar PNG `1008x752`). Full surface lifecycle exercised on all four platforms (context creation, surface resize, camera orbit/zoom, suspend/context loss, resume/context recreation across 2 full cycles). Verified CPU asset caches survive context loss and GPU caches re-upload resources once per context. Complete validation evidence preserved under `artifacts/stage-10/{windows,android,ios,maccatalyst,summary}/`.
+
 ### DoD
 
-- [ ] Validate Android, Windows, iOS and Mac Catalyst with the same runtime scene path.
-- [ ] Validate context creation, resize, suspension, recreation and disposal on all four platforms.
-- [ ] Confirm CPU asset caches survive graphics-context recreation.
-- [ ] Confirm GPU caches never reuse resources from an invalid context/device.
-- [ ] Confirm no GPU resource leaks across repeated surface recreation.
-- [ ] Validate mesh, texture, material, depth, culling and indexed-draw behavior on all four platforms.
-- [ ] Validate camera interaction and render metrics on all four platforms.
-- [ ] Establish a documented supported-platform/version/device matrix.
-- [ ] Add or strengthen backend-independent regression tests for lifecycle and cache behavior.
-- [ ] Record platform-specific limitations and unsupported configurations.
-- [ ] Measure representative frame/draw/triangle metrics on each platform.
-- [ ] Verify the existing 2D Orbit rendering path remains functional.
-- [ ] Update architecture, rendering, performance, testing and development documentation.
+- [x] Validate Android, Windows, iOS and Mac Catalyst with the same runtime scene path.
+- [x] Validate context creation, resize, suspension, recreation and disposal on all four platforms.
+- [x] Confirm CPU asset caches survive graphics-context recreation.
+- [x] Confirm GPU caches never reuse resources from an invalid context/device.
+- [x] Confirm no GPU resource leaks across repeated surface recreation.
+- [x] Validate mesh, texture, material, depth, culling and indexed-draw behavior on all four platforms.
+- [x] Validate camera interaction and render metrics on all four platforms.
+- [x] Establish a documented supported-platform/version/device matrix.
+- [x] Add or strengthen backend-independent regression tests for lifecycle and cache behavior.
+- [x] Record platform-specific limitations and unsupported configurations.
+- [x] Measure representative frame/draw/triangle metrics on each platform.
+- [x] Verify the existing 2D Orbit rendering path remains functional.
+- [x] Update architecture, rendering, performance, testing and development documentation.
 
 ## Stage 11 — 3D animation
 

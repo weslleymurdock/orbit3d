@@ -1,9 +1,12 @@
 #if WINDOWS
+using System.Buffers.Binary;
+using System.IO.Compression;
 using System.Runtime.InteropServices;
 using Microsoft.Maui.Handlers;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Silk.NET.OpenGL;
 using WinRT.Interop;
 
 namespace Orbit3D.Graphics.Silk;
@@ -38,6 +41,9 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
     private int surfaceWidth;
     private int surfaceHeight;
     private bool nativeSurfaceVisible;
+    private bool isRenderingSubscribed;
+    private bool isPaused;
+    private bool isSuspended;
 
     public SilkWindowsSurfaceView(SilkGraphicsSurface surface)
     {
@@ -47,9 +53,41 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
         SizeChanged += OnSizeChanged;
     }
 
+    public void PauseRendering()
+    {
+        Console.WriteLine("[SilkWindows] Rendering paused.");
+        isPaused = true;
+        UnsubscribeRendering();
+        if (nativeContext is not null && graphicsContext is not null && !graphicsContext.IsApiDisposed)
+        {
+            nativeContext.MakeCurrent();
+            graphicsContext.Api.Finish();
+        }
+    }
+
+    public void SuspendSurface()
+    {
+        Console.WriteLine("[SilkWindows] Surface suspended; releasing native WGL context and popup.");
+        isSuspended = true;
+        isPaused = false;
+        ReleaseNativeContext();
+    }
+
+    public void ResumeSurface()
+    {
+        isSuspended = false;
+        isPaused = false;
+        if (!IsLoaded)
+            return;
+
+        Console.WriteLine($"[SilkWindows] Surface resumed; hasContext={graphicsContext is not null}.");
+        InitializeNativeContext();
+        SubscribeRendering();
+    }
+
     public void ReleaseSurface()
     {
-        CompositionTarget.Rendering -= OnRendering;
+        UnsubscribeRendering();
         ReleaseNativeContext();
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
@@ -58,12 +96,21 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
 
     private void OnLoaded(object sender, RoutedEventArgs args)
     {
-        if (nativeContext is not null)
+        if (isSuspended)
+            return;
+
+        InitializeNativeContext();
+    }
+
+    private void InitializeNativeContext()
+    {
+        if (nativeContext is not null || isSuspended)
             return;
 
         var mauiWindow = Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault();
         hostWindow = mauiWindow?.Handler?.PlatformView as Microsoft.UI.Xaml.Window
             ?? throw new InvalidOperationException("The MAUI Windows host window is not available.");
+        hostWindow.Closed -= OnHostWindowClosed;
         hostWindow.Closed += OnHostWindowClosed;
         try
         {
@@ -75,11 +122,17 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
             graphicsContext = new SilkGraphicsContext(
                 nativeContext.GetProcAddress,
                 nativeContext.IsCurrent,
-                nativeContext.Present,
+                PresentSurface,
                 isOpenGles: false);
-            UpdateSurfaceBounds();
+            var gl = graphicsContext.Api;
+            var dpi = NativeWglContext.GetDpiForWindow(hostWindowHandle);
+            Console.WriteLine(
+                $"[SilkWindows] GL context: version='{gl.GetStringS(StringName.Version)}' renderer='{gl.GetStringS(StringName.Renderer)}' " +
+                $"glsl='{gl.GetStringS(StringName.ShadingLanguageVersion)}' dpi={dpi}");
             surface.RaiseContextCreated(graphicsContext);
-            CompositionTarget.Rendering += OnRendering;
+            UpdateSurfaceBounds(forceResize: true);
+            if (!isPaused)
+                SubscribeRendering();
         }
         catch
         {
@@ -92,18 +145,36 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
 
     private void OnHostWindowClosed(object sender, Microsoft.UI.Xaml.WindowEventArgs args)
     {
-        CompositionTarget.Rendering -= OnRendering;
+        UnsubscribeRendering();
         ReleaseNativeContext();
     }
 
     private void OnSizeChanged(object sender, SizeChangedEventArgs args) => UpdateSurfaceBounds();
 
-    private void OnRendering(object? sender, object args)
+    private void SubscribeRendering()
     {
-        if (nativeContext is null || graphicsContext is null)
+        if (isRenderingSubscribed)
             return;
 
-        var visible = Visibility == Microsoft.UI.Xaml.Visibility.Visible;
+        CompositionTarget.Rendering += OnRendering;
+        isRenderingSubscribed = true;
+    }
+
+    private void UnsubscribeRendering()
+    {
+        if (!isRenderingSubscribed)
+            return;
+
+        CompositionTarget.Rendering -= OnRendering;
+        isRenderingSubscribed = false;
+    }
+
+    private void OnRendering(object? sender, object args)
+    {
+        if (isPaused || isSuspended || nativeContext is null || graphicsContext is null)
+            return;
+
+        var visible = Visibility == Microsoft.UI.Xaml.Visibility.Visible && surface.IsVisible;
         if (visible != nativeSurfaceVisible)
         {
             NativeWglContext.Show(nativeContext.WindowHandle, visible);
@@ -118,11 +189,11 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
             surface.RaiseRenderFrame();
     }
 
-    private void UpdateSurfaceBounds()
+    private void UpdateSurfaceBounds(bool forceResize = false)
     {
         if (nativeContext is null || hostWindow is null || hostWindowHandle == 0)
             return;
-        if (Visibility != Microsoft.UI.Xaml.Visibility.Visible)
+        if (Visibility != Microsoft.UI.Xaml.Visibility.Visible || !surface.IsVisible)
         {
             NativeWglContext.Show(nativeContext.WindowHandle, false);
             nativeSurfaceVisible = false;
@@ -149,7 +220,8 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
             nativeSurfaceVisible = false;
             return;
         }
-        if (nativeSurfaceVisible &&
+        if (!forceResize &&
+            nativeSurfaceVisible &&
             clientOrigin.X == surfaceX &&
             clientOrigin.Y == surfaceY &&
             width == surfaceWidth &&
@@ -163,7 +235,7 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
         surfaceX = clientOrigin.X;
         surfaceY = clientOrigin.Y;
         var dimensions = NativeWglContext.GetClientSize(nativeContext.WindowHandle);
-        if (dimensions.Width == surfaceWidth && dimensions.Height == surfaceHeight)
+        if (!forceResize && dimensions.Width == surfaceWidth && dimensions.Height == surfaceHeight)
             return;
 
         surfaceWidth = dimensions.Width;
@@ -177,6 +249,7 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
 
     private void ReleaseNativeContext()
     {
+        UnsubscribeRendering();
         var context = graphicsContext;
         var native = nativeContext;
         if (hostWindow is not null)
@@ -196,7 +269,6 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
                 native.MakeCurrent();
                 surface.RaiseContextLost(context);
             }
-
         }
         finally
         {
@@ -204,6 +276,129 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
             hostWindow = null;
             hostWindowHandle = 0;
         }
+    }
+
+    private void PresentSurface()
+    {
+        if (nativeContext is null)
+            return;
+
+        var captureDir = Environment.GetEnvironmentVariable("ORBIT3D_SILK_CAPTURE_DIR");
+        if (!string.IsNullOrWhiteSpace(captureDir) &&
+            graphicsContext is not null &&
+            !graphicsContext.IsApiDisposed &&
+            surfaceWidth > 0 &&
+            surfaceHeight > 0)
+        {
+            TryCaptureRequestedFrame(graphicsContext.Api, surfaceWidth, surfaceHeight, captureDir);
+        }
+
+        nativeContext.Present();
+    }
+
+    private static void TryCaptureRequestedFrame(GL gl, int width, int height, string captureDir)
+    {
+        var requestPath = Path.Combine(captureDir, "capture.request");
+        if (!File.Exists(requestPath))
+            return;
+
+        try
+        {
+            var name = File.ReadAllText(requestPath).Trim();
+            File.Delete(requestPath);
+            if (string.IsNullOrEmpty(name))
+                name = $"frame-{DateTime.Now:yyyyMMdd_HHmmss}";
+
+            var rowBytes = width * 4;
+            var pixels = new byte[rowBytes * height];
+            gl.Finish();
+            gl.PixelStore(PixelStoreParameter.PackAlignment, 1);
+            gl.ReadPixels(0, 0, (uint)width, (uint)height, PixelFormat.Rgba, PixelType.UnsignedByte, pixels.AsSpan());
+
+            Directory.CreateDirectory(captureDir);
+            var outPath = Path.Combine(captureDir, name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? name : name + ".png");
+            WriteRgbaPngBottomUp(outPath, width, height, pixels);
+            Console.WriteLine($"[SilkWindows] Captured {width}x{height} frame to {Path.GetFileName(outPath)}");
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine($"[SilkWindows] Frame capture failed: {exception}");
+            try
+            {
+                File.Delete(requestPath);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    private static void WriteRgbaPngBottomUp(string path, int width, int height, byte[] bottomUpRgba)
+    {
+        using var stream = File.Create(path);
+        stream.Write([137, 80, 78, 71, 13, 10, 26, 10]);
+
+        Span<byte> ihdr = stackalloc byte[13];
+        BinaryPrimitives.WriteInt32BigEndian(ihdr[0..4], width);
+        BinaryPrimitives.WriteInt32BigEndian(ihdr[4..8], height);
+        ihdr[8] = 8;  // 8 bits per channel
+        ihdr[9] = 6;  // RGBA
+        ihdr[10] = 0; // Deflate
+        ihdr[11] = 0; // No filter
+        ihdr[12] = 0; // No interlace
+        WritePngChunk(stream, "IHDR"u8, ihdr);
+
+        using var compressed = new MemoryStream();
+        using (var zlib = new ZLibStream(compressed, CompressionLevel.Fastest, leaveOpen: true))
+        {
+            var rowBytes = width * 4;
+            var scanline = new byte[1 + rowBytes];
+            for (var y = 0; y < height; y++)
+            {
+                var srcRowOffset = (height - 1 - y) * rowBytes;
+                System.Buffer.BlockCopy(bottomUpRgba, srcRowOffset, scanline, 1, rowBytes);
+                for (var x = 0; x < width; x++)
+                    scanline[1 + (x * 4) + 3] = 255;
+                zlib.Write(scanline, 0, scanline.Length);
+            }
+        }
+
+        WritePngChunk(stream, "IDAT"u8, compressed.GetBuffer().AsSpan(0, (int)compressed.Length));
+        WritePngChunk(stream, "IEND"u8, ReadOnlySpan<byte>.Empty);
+    }
+
+    private static void WritePngChunk(Stream stream, ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
+    {
+        Span<byte> lengthBytes = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(lengthBytes, (uint)data.Length);
+        stream.Write(lengthBytes);
+        stream.Write(type);
+        if (!data.IsEmpty)
+            stream.Write(data);
+
+        var crc = ComputeCrc32(type, data);
+        Span<byte> crcBytes = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(crcBytes, crc);
+        stream.Write(crcBytes);
+    }
+
+    private static uint ComputeCrc32(ReadOnlySpan<byte> first, ReadOnlySpan<byte> second)
+    {
+        var crc = 0xFFFFFFFFu;
+        crc = UpdateCrc32(crc, first);
+        crc = UpdateCrc32(crc, second);
+        return ~crc;
+    }
+
+    private static uint UpdateCrc32(uint crc, ReadOnlySpan<byte> bytes)
+    {
+        foreach (var b in bytes)
+        {
+            crc ^= b;
+            for (var bit = 0; bit < 8; bit++)
+                crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
+        }
+        return crc;
     }
 }
 
@@ -588,7 +783,7 @@ internal sealed class NativeWglContext : IDisposable
     [DllImport("gdi32.dll", SetLastError = true)]
     private static extern bool SwapBuffers(nint deviceContext);
 
-    [DllImport("gdi32.dll", SetLastError = true)]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern int ReleaseDC(nint window, nint deviceContext);
 
     [DllImport("opengl32.dll", EntryPoint = "wglCreateContext", SetLastError = true)]

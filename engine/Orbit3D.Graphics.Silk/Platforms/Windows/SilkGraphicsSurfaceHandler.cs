@@ -53,6 +53,22 @@ internal sealed class SilkWindowsSurfaceView : Microsoft.UI.Xaml.Controls.Grid
         SizeChanged += OnSizeChanged;
     }
 
+    protected override Microsoft.UI.Xaml.Automation.Peers.AutomationPeer OnCreateAutomationPeer() =>
+        new SilkSurfaceAutomationPeer(this);
+
+    private sealed class SilkSurfaceAutomationPeer : Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer
+    {
+        private readonly SilkWindowsSurfaceView owner;
+
+        public SilkSurfaceAutomationPeer(SilkWindowsSurfaceView owner) : base(owner) => this.owner = owner;
+
+        protected override bool IsOffscreenCore() =>
+            !owner.IsLoaded ||
+            owner.Visibility != Microsoft.UI.Xaml.Visibility.Visible ||
+            owner.ActualWidth <= 0 ||
+            owner.ActualHeight <= 0;
+    }
+
     public void PauseRendering()
     {
         Console.WriteLine("[SilkWindows] Rendering paused.");

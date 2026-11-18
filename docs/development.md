@@ -15,7 +15,7 @@ Orbit3D uses a split-workspace topology where each platform is built, executed, 
 
 | Platform | Workspace & Implementation | Build & Execution | Appium UI Tests |
 |---|---|---|---|
-| **Windows** | Windows local VS Code | Windows local | Windows local (`windows`) |
+| **Windows** | Windows local VS Code | Windows local | Windows local (`wincore`) |
 | **Android** | Windows local VS Code | Windows local (device/emulator) | Windows local (`uiautomator2`) |
 | **iOS** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`xcuitest`) |
 | **Mac Catalyst** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`mac2`) |
@@ -63,6 +63,7 @@ For each stage: inspect current code, read relevant guidance, make the smallest 
 - **Stage 10 (Cross-Platform Stabilization)**: Consolidated lifecycle, context recreation, CPU/GPU caching, and rendering consistency across Windows, Android, iOS, and Mac Catalyst.
 - **Stage 11 — Phase 1 (Windows & Android Skeletal Animation)**: Added backend-neutral `Skeleton3D`, `SkinningData`, `AnimationClip3D`, and `AnimationEvaluator` in `Orbit3D.Engine`, Assimp skeletal/clip import for `assets/Idle.fbx`, `RGBA32F` bone-texture GPU skinning in `Orbit3D.Graphics.Silk`, and `games/3D/AnimationSample/` + `games/3D/AnimationSample.UITests/`.
 - **Stage 11 — Phase 2 (iOS & Mac Catalyst Skeletal Animation)**: Standardized central `MauiVersion` (`11.0.10` in `Directory.Build.props`), added `SceneDelegate.cs` for Apple `UIApplicationSceneManifest` startup in `AnimationSample`, and validated `AnimationSample` + `IosAnimationTests` (6/6 on `iPhone 17 — iOS 27.2`) and `MacCatalystAnimationTests` (7/7 on `macOS 27.2.1` `Apple M4`) directly on the remote macOS host via VS Code Remote - SSH.
+- **Stage 11 — Phase 3 (Windows & Android Final Validation)**: Recovered Windows UI automation using Appium `4.0.0` + `wincore@4.1.2` (`automationName: Wincore`, `SilkSurfaceAutomationPeer`, `windows: invoke`, and `ORBIT3D_SILK_CAPTURE_DIR` readback fallback), passing `WindowsAnimationTests` (5/5), and revalidated `AndroidAnimationTests` (5/5 with `uiautomator2@9.2.1` on `emulator-5554`) against `MauiVersion=11.0.10`.
 
 ## Public API
 Public engine APIs require XML documentation. Prefer stable Orbit concepts over third-party implementation details.

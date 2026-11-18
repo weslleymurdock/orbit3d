@@ -101,11 +101,33 @@ public sealed class AnimationSurfacePageObject : BasePage
         return ParseDiagnostics(text);
     }
 
-    public void ClickPlay() => WaitForElement(playBtnSelector).Click();
-    public void ClickPause() => WaitForElement(pauseBtnSelector).Click();
-    public void ClickResume() => WaitForElement(resumeBtnSelector).Click();
-    public void ClickStop() => WaitForElement(stopBtnSelector).Click();
-    public void ClickLoop() => WaitForElement(loopBtnSelector).Click();
-    public void ClickSpeed() => WaitForElement(speedBtnSelector).Click();
-    public void ClickRecreateContext() => WaitForElement(recreateContextBtnSelector).Click();
+    public void ClickPlay() => ClickButton(playBtnSelector);
+    public void ClickPause() => ClickButton(pauseBtnSelector);
+    public void ClickResume() => ClickButton(resumeBtnSelector);
+    public void ClickStop() => ClickButton(stopBtnSelector);
+    public void ClickLoop() => ClickButton(loopBtnSelector);
+    public void ClickSpeed() => ClickButton(speedBtnSelector);
+    public void ClickRecreateContext() => ClickButton(recreateContextBtnSelector);
+
+    private void ClickButton(By selector)
+    {
+        var element = WaitForElement(selector);
+        if (Platform == PlatformKind.Windows)
+        {
+            try
+            {
+                Driver.ExecuteScript("windows: invoke", new Dictionary<string, object>
+                {
+                    ["elementId"] = element.Id
+                });
+                return;
+            }
+            catch
+            {
+                // Fall back to standard WebDriver click if invoke pattern is unavailable.
+            }
+        }
+
+        element.Click();
+    }
 }

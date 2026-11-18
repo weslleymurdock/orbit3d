@@ -91,9 +91,54 @@ public static class DiagnosticsCollector
         }
         catch (Exception ex)
         {
+            if (platform == PlatformKind.Windows && TryCaptureViaSilkReadback(platform, label, out var fallbackPath))
+            {
+                return fallbackPath;
+            }
+
             Console.Error.WriteLine($"[Diagnostics] Failed to take screenshot '{label}': {ex.Message}");
             return null;
         }
+    }
+
+    private static bool TryCaptureViaSilkReadback(PlatformKind platform, string label, out string? screenshotPath)
+    {
+        screenshotPath = null;
+        var captureDir = Environment.GetEnvironmentVariable("ORBIT3D_SILK_CAPTURE_DIR");
+        if (string.IsNullOrWhiteSpace(captureDir))
+            return false;
+
+        try
+        {
+            Directory.CreateDirectory(captureDir);
+            var safeLabel = string.Join("_", label.Split(Path.GetInvalidFileNameChars()));
+            var requestName = $"{safeLabel}_{DateTime.UtcNow:yyyyMMdd_HHmmss}";
+            var capturedPng = Path.Combine(captureDir, requestName + ".png");
+            var requestFile = Path.Combine(captureDir, "capture.request");
+            File.WriteAllText(requestFile, requestName);
+
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (File.Exists(capturedPng) && new FileInfo(capturedPng).Length > 0)
+                {
+                    var outputDir = Path.Combine(TestConfiguration.ArtifactsDirectory, platform.ToString(), "screenshots");
+                    Directory.CreateDirectory(outputDir);
+                    var destPath = Path.Combine(outputDir, Path.GetFileName(capturedPng));
+                    File.Copy(capturedPng, destPath, overwrite: true);
+                    screenshotPath = destPath;
+                    Console.WriteLine($"[Diagnostics] Screenshot saved via Silk readback fallback: {destPath}");
+                    return true;
+                }
+                Thread.Sleep(50);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Diagnostics] Silk readback screenshot fallback failed: {ex.Message}");
+        }
+
+        return false;
     }
 }
 

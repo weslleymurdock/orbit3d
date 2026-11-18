@@ -5,7 +5,7 @@
 | Platform | Implementation | Build and Execution | Appium UI Tests |
 |---|---|---|---|
 | **Android** | Windows local VS Code | Windows local (device/emulator) | Windows local (`uiautomator2`) |
-| **Windows** | Windows local VS Code | Windows local | Windows local (`windows`) |
+| **Windows** | Windows local VS Code | Windows local | Windows local (`wincore`) |
 | **iOS** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`xcuitest`) |
 | **Mac Catalyst** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`mac2`) |
 
@@ -88,6 +88,12 @@ Phase 2 validated the existing `Orbit3D.Engine` skeletal animation runtime and `
 - **Mac Catalyst (`net11.0-maccatalyst`, universal `maccatalyst-arm64`/`maccatalyst-x64`)**: `SilkMacSurfaceView` (`CAOpenGLLayer` + CGL OpenGL `4.1 Metal - 91.7` on `Apple M4`, GLSL `4.10`, 32-bit depth) compiles the `#version 330 core` `BasicLitSkinned` shader and renders animated `Idle.fbx` (`16` draw calls, `32,888` triangles). `MacCatalystAnimationTests` (`mac2` with `caffeinate -u`) passed **7/7**, including window resize (`osascript` was blocked by System Events TCC timeout; `mac2` corner-drag resize succeeded) and 2 consecutive context recreation cycles.
 - **Unit & Regression Tests**: `Orbit.Engine.Tests` (`net11.0`: **2/2**), `Orbit3D.Engine.Tests` (`net11.0`: **60/60**). On the macOS host, `net11.0-android` build is **blocked** (`XA5300`: Android SDK not installed on macOS) and `net11.0-windows10.0.19041.0` is **not executed** (Windows-only TFM). Windows Appium UI tests remain **blocked** on the Windows host (`WinAppDriver.exe` not installed).
 - **Evidence**: Archived under `artifacts/stage-11/phase-2/{ios,maccatalyst,unit-tests,regression,summary}/`.
+
+## Stage 11 Phase 3 Windows & Android final validation status
+- **Windows (`net11.0-windows10.0.19041.0`, `MauiVersion=11.0.10`)**: Validated in interactive desktop session (`SessionId=2`) using Appium `4.0.0` + `wincore@4.1.2` (`automationName = "Wincore"`, `ms:waitForAppLaunch = 15`); `WinAppDriver.exe` is not installed and is not required by `wincore`. Added `SilkSurfaceAutomationPeer` to `SilkWindowsSurfaceView` (`OnCreateAutomationPeer` + `IsOffscreenCore`) so `SilkGraphicsSurface` is visible in WinUI 3 UIA, used `windows: invoke` for button activation in `AnimationSurfacePageObject`, and used `ORBIT3D_SILK_CAPTURE_DIR` `gl.ReadPixels` fallback in `DiagnosticsCollector` when `WincoreServer` `getScreenshot` returns `InternalError: Identificador inválido` (`ForegroundWindow=0`). `WindowsAnimationTests` passed **5/5** (`29.1s`).
+- **Android (`net11.0-android`, `MauiVersion=11.0.10`)**: Rebuilt Release APK and revalidated on `emulator-5554` (`pixel_7_-_api_36_0_1`) using Appium `4.0.0` + `uiautomator2@9.2.1` (`APPIUM_HOME=C:\Users\wesll\.appium-horizon-appium4`). `AndroidAnimationTests` passed **5/5** (`29.9s`).
+- **Unit & Artifact Tests**: `Orbit.Engine.Tests` (`net11.0`: **2/2**; note `net11.0-windows10.0.19041.0` fails `LoadSceneShouldChangeStateToLoaded` in headless `testhost` with `REGDB_E_CLASSNOTREG` because `GraphicsView` requires an initialized WinUI runtime), `Orbit3D.Engine.Tests` (`net11.0`: **60/60**, `net11.0-windows10.0.19041.0`: **74/74**), and `AnimationSample.UITests` (`Category=Artifact`: **4/4**).
+- **Evidence**: Archived under `artifacts/stage-11/phase-3/{environment,windows,android,unit-tests,regression,summary}/`.
 
 ## Integration tests
 Where practical, validate Assimp imports, hierarchy conversion, texture resolution and GPU resource creation. Ordinary unit tests must not require a platform graphics device.

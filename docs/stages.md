@@ -254,34 +254,34 @@ Stage 11 introduces runtime 3D skeletal/skinning animation after all four MAUI g
 
 ### DoD
 
-- [ ] Inspect and use the existing `assets/Idle.fbx` Mixamo model.
-- [ ] Preserve and validate its embedded skeleton, skinning, and animation data.
-- [ ] Ensure the FBX importer supports all data required by `assets/Idle.fbx`.
-- [ ] Define backend-neutral animation/skeleton runtime data.
-- [ ] Extend the Assimp conversion boundary for supported skeletal animation data (bones, inverse bind transforms, weights, and animation clips).
-- [ ] Preserve animation data in CPU-owned assets for context recreation.
-- [ ] Add runtime animation evaluation independent of the graphics backend without per-frame Assimp traversal.
-- [ ] Define the renderer contract required for accelerated skinning and implement the selected Silk GPU skinning path.
-- [ ] Create the dedicated `AnimationSample` MAUI application (`games/3D/AnimationSample/`).
-- [ ] Set its application ID to `com.remotecodehub.animationsample`.
-- [ ] Load and render `assets/Idle.fbx` through the Orbit3D asset pipeline.
-- [ ] Demonstrate the model's imported skeleton and bone hierarchy.
-- [ ] Demonstrate imported skin weights and vertex influences.
-- [ ] Demonstrate playback of the animation contained in `assets/Idle.fbx`.
-- [ ] Demonstrate pause/resume, looping, and time progression.
-- [ ] Create the dedicated `AnimationSample.UITests` Appium project (`games/3D/AnimationSample.UITests/`).
-- [ ] Integrate both projects into `games/3D/Orbit3D.Games.slnx`.
-- [ ] Expose stable accessibility identifiers and runtime animation diagnostics.
-- [ ] Implement meaningful Appium animation tests for Android (`uiautomator2`).
-- [ ] Implement meaningful Appium animation tests for Windows (`windows`).
-- [ ] Implement meaningful Appium animation tests for iOS (`xcuitest`).
-- [ ] Implement meaningful Appium animation tests for Mac Catalyst (`mac2`).
-- [ ] Validate animation and rendering through actual application execution on all four platforms (Android/Windows locally on Windows; iOS/Mac Catalyst on macOS `27.2` via VS Code Remote - SSH).
-- [ ] Validate graphics-context/device recreation while animation is active.
-- [ ] Add backend-independent animation unit tests.
-- [ ] Preserve the independent static rendering regression coverage provided by `SilkTriangleSample.UITests`.
-- [ ] Document animation asset requirements, supported formats, limitations, and test procedures.
-- [ ] Keep editor, ECS rewrite, advanced PBR, advanced shadows and post-processing outside this stage unless separately scoped.
+- [x] Inspect and use the existing `assets/Idle.fbx` Mixamo model.
+- [x] Preserve and validate its embedded skeleton, skinning, and animation data.
+- [x] Ensure the FBX importer supports all data required by `assets/Idle.fbx`.
+- [x] Define backend-neutral animation/skeleton runtime data.
+- [x] Extend the Assimp conversion boundary for supported skeletal animation data (bones, inverse bind transforms, weights, and animation clips).
+- [x] Preserve animation data in CPU-owned assets for context recreation.
+- [x] Add runtime animation evaluation independent of the graphics backend without per-frame Assimp traversal.
+- [x] Define the renderer contract required for accelerated skinning and implement the selected Silk GPU skinning path.
+- [x] Create the dedicated `AnimationSample` MAUI application (`games/3D/AnimationSample/`).
+- [x] Set its application ID to `com.remotecodehub.animationsample`.
+- [x] Load and render `assets/Idle.fbx` through the Orbit3D asset pipeline.
+- [x] Demonstrate the model's imported skeleton and bone hierarchy.
+- [x] Demonstrate imported skin weights and vertex influences.
+- [x] Demonstrate playback of the animation contained in `assets/Idle.fbx`.
+- [x] Demonstrate pause/resume, looping, and time progression.
+- [x] Create the dedicated `AnimationSample.UITests` Appium project (`games/3D/AnimationSample.UITests/`).
+- [x] Integrate both projects into `games/3D/Orbit3D.Games.slnx`.
+- [x] Expose stable accessibility identifiers and runtime animation diagnostics.
+- [x] Implement meaningful Appium animation tests for Android (`uiautomator2`).
+- [x] Implement meaningful Appium animation tests for Windows (`wincore`).
+- [x] Implement meaningful Appium animation tests for iOS (`xcuitest`).
+- [x] Implement meaningful Appium animation tests for Mac Catalyst (`mac2`).
+- [x] Validate animation and rendering through actual application execution on all four platforms (Android/Windows locally on Windows; iOS/Mac Catalyst on macOS `27.2` via VS Code Remote - SSH).
+- [x] Validate graphics-context/device recreation while animation is active.
+- [x] Add backend-independent animation unit tests.
+- [x] Preserve the independent static rendering regression coverage provided by `SilkTriangleSample.UITests`.
+- [x] Document animation asset requirements, supported formats, limitations, and test procedures.
+- [x] Keep editor, ECS rewrite, advanced PBR, advanced shadows and post-processing outside this stage unless separately scoped.
 
 > [!IMPORTANT]
 > Do not mark Stage 11 complete merely because animation engine unit tests pass; both the engine functionality and the dedicated `AnimationSample` + `AnimationSample.UITests` must be validated on all four platforms.
@@ -290,7 +290,7 @@ Stage 11 introduces runtime 3D skeletal/skinning animation after all four MAUI g
 - Implemented backend-neutral skeletal animation (`Skeleton3D`, `SkinningData`, `AnimationClip3D`, `AnimationEvaluator`), `AssimpModelImporter` skeletal/clip conversion for `assets/Idle.fbx` (88 bones, 5,420 vertices, 8,222 faces, `mixamo.com` clip), and `Orbit3D.Graphics.Silk` GPU skinning using an `RGBA32F` `4x128` `uBoneTexture` (`texelFetch`, `MaxSupportedBones = 128`) compatible with both OpenGL 3.3 Core (Windows WGL) and OpenGL ES 3.0 (Android).
 - Created `games/3D/AnimationSample/` (`com.remotecodehub.animationsample`) and `games/3D/AnimationSample.UITests/` and integrated both into `games/3D/Orbit3D.Games.slnx`.
 - **Validated**: `Orbit3D.Engine.Tests` (`net11.0`: 60/60, `net11.0-windows10.0.19041.0`: 74/74), `AnimationSample.UITests` (`Category=Artifact`: 4/4, `Platform=Android` on `emulator-5554`: 5/5), and direct Windows `AnimationSample.exe` WGL execution (`OpenGL 3.3.0`, RTX 3060).
-- **Blocked on host**: Windows Appium UI tests (`WinAppDriver.exe` not installed; `wincore` sees 0 child windows in non-interactive session).
+- **Phase 1 Host Limitation (Subsequently Resolved in Phase 3)**: Windows Appium UI tests were initially blocked during Phase 1 (`WinAppDriver.exe` not installed; `wincore` session configuration pending); this was resolved in Phase 3 via `wincore@4.1.2`.
 
 ### Stage 11 Phase 2 Status (iOS & Mac Catalyst — Validated on macOS 27.2.1; Stage 11 Review Pending)
 - **MAUI Version Alignment**: Standardized `MauiVersion` to `11.0.10` (published NuGet 11.x package; `11.0.100` does not exist on nuget.org and caused `NU1102`) in `Directory.Build.props`, and removed redundant/mismatched `MauiVersion` overrides from `AnimationSample.csproj`, `SilkTriangleSample.csproj`, `Orbit3D.Engine.csproj`, and `Orbit.Engine.Tests.csproj`.
@@ -298,4 +298,11 @@ Stage 11 introduces runtime 3D skeletal/skinning animation after all four MAUI g
 - **iOS (`net11.0-ios`, `iossimulator-arm64`)**: Reused `SilkIosSurfaceView` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0, `#version 300 es`, `RGBA32F` `4x128` `uBoneTexture`). `IosAnimationTests` (`xcuitest`) passed **6/6** on `iPhone 17 — iOS 27.2` Simulator (`62EB87F6-E890-4118-AAA2-5864621757BF`), confirming `Idle.fbx` import (`88` bones, `240` nodes, `16` draw calls, `32,888` triangles), advancing animation time and `PoseHash`, playback controls, 2 consecutive context recreation cycles, and visually verified skeletal deformation.
 - **Mac Catalyst (`net11.0-maccatalyst`, `maccatalyst-arm64`/`maccatalyst-x64`)**: Reused `SilkMacSurfaceView` (`CAOpenGLLayer` + CGL OpenGL `4.1 Metal - 91.7` on `Apple M4`, `#version 330 core`, `RGBA32F` `4x128` `uBoneTexture`). `MacCatalystAnimationTests` (`mac2` with `caffeinate -u`) passed **7/7**, including `WindowResizeUpdatesViewportAndContinuesRendering` and `ConsecutiveContextRecreationsPreserveAnimationAndResumeRendering`.
 - **Unit & Regression**: `Orbit.Engine.Tests` (`net11.0`: **2/2**) and `Orbit3D.Engine.Tests` (`net11.0`: **60/60**). On the macOS host, `net11.0-android` build is **blocked** (`XA5300`: Android SDK not installed) and `net11.0-windows10.0.19041.0` is **not executed** (Windows-only TFM).
+
+### Stage 11 Phase 3 Status (Windows & Android Final Validation — Stage 11 Complete)
+- **Windows Appium Recovery (`wincore@4.1.2` on Appium `4.0.0`)**: `WinAppDriver.exe` is not installed on the Windows workstation and is not required by `wincore`. Updated `AppiumDriverFactory` to target `automationName = "Wincore"` with numeric `ms:waitForAppLaunch = 15`, added `SilkSurfaceAutomationPeer` to `SilkWindowsSurfaceView` so `SilkGraphicsSurface` is visible in the WinUI 3 UIA tree, used `windows: invoke` for deterministic button activation in `AnimationSurfacePageObject`, and added an `ORBIT3D_SILK_CAPTURE_DIR` `gl.ReadPixels` fallback in `DiagnosticsCollector` when `WincoreServer` `getScreenshot` fails (`InternalError: Identificador inválido`) on non-foregrounded desktops.
+- **Windows (`net11.0-windows10.0.19041.0`, `MauiVersion=11.0.10`)**: Direct `AnimationSample.exe` execution confirmed OpenGL 3.3.0 (`NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2`), `Idle.fbx` import (`88` bones, `240` nodes, `16` draw calls, `32,888` triangles), and `WindowsAnimationTests` passed **5/5** in the interactive desktop session (`SessionId=2`).
+- **Android (`net11.0-android`, `MauiVersion=11.0.10`)**: Rebuilt Release APK with centralized `MauiVersion=11.0.10` and revalidated `AndroidAnimationTests` using Appium `4.0.0` + `uiautomator2@9.2.1` on `emulator-5554` (`pixel_7_-_api_36_0_1`): **5/5** passed, with screenshot verification of GPU-skinned `Idle.fbx`.
+- **Unit & Artifact Tests**: `Orbit.Engine.Tests` (`net11.0`: **2/2**), `Orbit3D.Engine.Tests` (`net11.0`: **60/60**, `net11.0-windows10.0.19041.0`: **74/74**), and `AnimationSample.UITests` (`Category=Artifact`: **4/4**).
+- **Evidence**: Archived under `artifacts/stage-11/phase-3/{environment,windows,android,unit-tests,regression,summary}/`.
 - **Evidence**: Preserved under `artifacts/stage-11/phase-2/{ios,maccatalyst,unit-tests,regression,summary}/`. Stage 11 remains open pending final cross-platform review.

@@ -13,7 +13,7 @@ This document is the authoritative guide for the UI testing infrastructure of `S
 - **UI Test Runner:** Pure desktop `.NET 10` (`net11.0`) test project using xUnit v3 and Appium.WebDriver. The test runner is **never** multi-targeted as mobile or Apple application packages, eliminating app-host (`UseAppHost`) and missing bundle identifier (`CFBundleIdentifier`) failures.
 - **Automation Transport:** Appium server (HTTP JSONWP / W3C WebDriver protocol on `http://127.0.0.1:4723/`).
 - **Platform Drivers:**
-  - Windows: `windows` driver
+  - Windows: `wincore` driver (`automationName: Wincore`)
   - iOS Simulator: `xcuitest` driver
   - Android: `uiautomator2` driver
   - Mac Catalyst: `mac2` driver
@@ -22,7 +22,7 @@ This document is the authoritative guide for the UI testing infrastructure of `S
 | Platform | Implementation | Build and Execution | Appium UI Tests |
 |---|---|---|---|
 | **Android** | Windows local VS Code | Windows local (device/emulator) | Windows local (`uiautomator2`) |
-| **Windows** | Windows local VS Code | Windows local | Windows local (`windows`) |
+| **Windows** | Windows local VS Code | Windows local | Windows local (`wincore`) |
 | **iOS** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`xcuitest`) |
 | **Mac Catalyst** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`mac2`) |
 
@@ -101,7 +101,7 @@ Each platform implements the Page Object pattern (`BasePage`), isolating UI auto
 
 The repository pins the following toolchain baseline:
 - **.NET SDK:** `11.0.100` (pinned in [`global.json`](../../global.json), `rollForward: disable`).
-- **MAUI Version:** `11.0.100` in [`Directory.Build.props`](../../Directory.Build.props) (`SilkTriangleSample.csproj` sets `11.0.100`).
+- **MAUI Version:** `11.0.10` in [`Directory.Build.props`](../../Directory.Build.props).
 - **macOS Host:** `macOS 27.2` with `.NET SDK 11.0.100` and the Apple/MAUI toolchain (confirm exact Xcode and workload versions on the remote host).
 
 Workloads required per platform:
@@ -143,9 +143,10 @@ Workloads required per platform:
 - **Status & Policy:** Stage 09 implements the native Mac Catalyst Silk graphics surface (`SilkMacSurfaceView` + `CAOpenGLLayer` OpenGL 4.1 core profile) and launches `GraphicSurfacePage` on startup. `MacCatalystGraphicSurfacePage` and `MacCatalystSampleAppTests` validate surface visibility, context creation, asset loading, and frame rendering directly on macOS via Appium `mac2`.
 
 ### 6.4 Windows
-- **Prerequisites:** Windows 10/11 x64, Developer Mode enabled, Windows App SDK Runtime.
-- **Appium Driver:** `windows` (`appium driver install windows`).
-- **Artifact:** `win-x64/SilkTriangleSample.exe` (unpackaged WinUI 3 distribution).
+- **Prerequisites:** Windows 10/11 x64, interactive unlocked desktop session (e.g. `SessionId=2`, not Session 0), Developer Mode enabled, Windows App SDK Runtime.
+- **Appium Driver:** `wincore@4.1.2` on Appium `4.0.0` (`automationName: Wincore`, numeric `ms:waitForAppLaunch: 15`; `WinAppDriver.exe` is not required).
+- **Artifact:** `win-x64/AnimationSample.exe` / `win-x64/SilkTriangleSample.exe` (unpackaged WinUI 3 distribution).
+- **Notes:** `SilkWindowsSurfaceView` exposes `SilkSurfaceAutomationPeer` (`OnCreateAutomationPeer` + `IsOffscreenCore`) for UIA visibility. In `AnimationSample.UITests`, `windows: invoke` is used for deterministic button activation and `ORBIT3D_SILK_CAPTURE_DIR` provides a `gl.ReadPixels` screenshot fallback if `WincoreServer` `getScreenshot` fails when `ForegroundWindow=0`.
 
 ---
 

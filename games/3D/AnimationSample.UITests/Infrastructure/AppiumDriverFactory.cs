@@ -130,9 +130,9 @@ public static class AppiumDriverFactory
 
             case PlatformKind.Windows:
                 options.PlatformName = "Windows";
-                options.AutomationName = "Windows";
+                options.AutomationName = "Wincore";
                 options.App = appPath;
-                options.AddAdditionalAppiumOption("ms:waitForAppLaunch", "15");
+                options.AddAdditionalAppiumOption("ms:waitForAppLaunch", 15);
                 return options;
 
             case PlatformKind.iOS:

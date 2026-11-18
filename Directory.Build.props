@@ -2,6 +2,6 @@
   <PropertyGroup>
     <ValidateXcodeVersion>false</ValidateXcodeVersion>
     <_ValidateXcodeVersion>false</_ValidateXcodeVersion>
-    <MauiVersion>11.0.100</MauiVersion>
+    <MauiVersion>11.0.10</MauiVersion>
   </PropertyGroup>
 </Project>

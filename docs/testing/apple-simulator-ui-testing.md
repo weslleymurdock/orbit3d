@@ -295,3 +295,13 @@ GitHub Actions workflows are supplementary helpers for builds, diagnostics, and 
 - **`.github/workflows/dotnet-macos.yml`**: Supplementary macOS library build and desktop unit-test workflow (`Orbit.Engine.Tests`, `Orbit3D.Engine.Tests`).
 - **`.github/workflows/dotnet-windows.yml`**: Supplementary multi-target build and test workflow.
 - **`.github/workflows/silk-triangle-sample-build.yml`**: Supplementary packaging workflow for `SilkTriangleSample` build artifacts.
+
+---
+
+## 17. Stage 11 Phase 2: `AnimationSample` Apple Validation (`macOS 27.2.1`, `Xcode 27.2`)
+
+- **Host & Toolchain**: `macOS 27.2.1` (`BuildVersion 26B131`, `arm64`, `Apple M4`), `.NET SDK 11.0.100`, `maui 11.0.0/11.0.100`, `Xcode 27.2` (`27B52`), `Appium 4.0.0` (`xcuitest@13.1.1`, `mac2@5.0.2`).
+- **iOS Simulator Selection**: `iPhone Air — iOS 26.5` (`34E134C7-25BB-4925-8A3A-65674A943E87`) is not present in the Xcode 27.2 / iOS 27.2 runtime, and `iPhone Air — iOS 27.2` (`006860C8-F1E7-4065-A4A1-039ADDF6F04E`) failed simulator data migration on boot. Validation used the booted `iPhone 17 — iOS 27.2` Simulator (`62EB87F6-E890-4118-AAA2-5864621757BF`).
+- **iOS Results (`IosAnimationTests`, `xcuitest`)**: **6/6 passed** against `games/3D/AnimationSample/bin/Release/net11.0-ios/iossimulator-arm64/AnimationSample.app` (`OpenGL ES 3.0 APPLE-24.0.2`, `OpenGL ES GLSL ES 3.00`, `16` draw calls, `32,888` triangles, `88` bones, `240` nodes).
+- **Mac Catalyst Results (`MacCatalystAnimationTests`, `mac2` + `caffeinate -u`)**: **7/7 passed** against `games/3D/AnimationSample/bin/Release/net11.0-maccatalyst/AnimationSample.app` (`OpenGL 4.1 Metal - 91.7` on `Apple M4`, GLSL `4.10`, 32-bit depth), including `WindowResizeUpdatesViewportAndContinuesRendering` and `ConsecutiveContextRecreationsPreserveAnimationAndResumeRendering`.
+- **Evidence**: `artifacts/stage-11/phase-2/{ios,maccatalyst,unit-tests,regression,summary}/`.

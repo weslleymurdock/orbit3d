@@ -307,6 +307,11 @@ Agents must never wait for CI or use CI results as a substitute for executing ap
 ### 13.3 Stage 11 Phase 1: `AnimationSample.UITests`
 - **Dedicated Project:** `games/3D/AnimationSample.UITests/` tests `games/3D/AnimationSample/` (`com.remotecodehub.animationsample`) independently of `SilkTriangleSample.UITests/`.
 - **Android (`Platform=Android`, `uiautomator2`):** Passed 5/5 on `emulator-5554` (`AppLaunchesAndInitialUiIsVisible`, `GraphicsSurfaceAndContextInitialize`, `IdleFbxLoadsSkeletonSkinningAndClips`, `AnimationPlaysTimeProgressesAndControlsWork`, `ContextRecreationPreservesAnimationAndCapturesScreenshot`). Note: MAUI `AutomationId` values resolve via `resource-id` (`com.remotecodehub.animationsample:id/<AutomationId>`) on Android, and diagnostics label updates are throttled (`600ms`) with `waitForIdleTimeout = 0` so continuous 3D rendering does not stall UiAutomator2 queries.
-- **Artifact Discovery (`Category=Artifact`):** Passed 4/4.
+- **Artifact Discovery (`Category=Artifact`):** Passed 4/4 on Windows; on macOS, iOS and MacCatalyst artifact checks pass (2/4), while Windows/Android checks fail when those platforms have not been built locally.
 - **Windows (`Platform=Windows`):** Requires `WinAppDriver.exe` (or an interactive desktop session for `wincore`); currently blocked on container/headless host environments lacking `WinAppDriver.exe`.
+
+### 13.4 Stage 11 Phase 2: `AnimationSample.UITests` on Apple (`iOS` & `MacCatalyst`)
+- **iOS (`Platform=iOS`, `xcuitest`):** Passed **6/6** on `iPhone 17 — iOS 27.2` (`62EB87F6-E890-4118-AAA2-5864621757BF`, `iossimulator-arm64`), verifying `Idle.fbx` import (`88` bones, `240` nodes, `16` draw calls, `32,888` triangles), advancing animation time and `PoseHash`, playback controls (`Pause`/`Resume`/`Speed`/`Loop`/`Stop`/`Play`), 2 consecutive context recreation cycles, and screenshot capture.
+- **Mac Catalyst (`Platform=MacCatalyst`, `mac2`):** Passed **7/7** on `macOS 27.2.1` (`Apple M4`, `caffeinate -u`), verifying all shared animation tests plus `ConsecutiveContextRecreationsPreserveAnimationAndResumeRendering` and `WindowResizeUpdatesViewportAndContinuesRendering` (using `mac2` window-corner drag, as `mac2` does not implement W3C `window/rect` and `System Events` AppleScript requires interactive Automation TCC approval).
+- **Evidence:** Screenshots, TRX reports, and logs are archived under `artifacts/stage-11/phase-2/{ios,maccatalyst}/`.
 

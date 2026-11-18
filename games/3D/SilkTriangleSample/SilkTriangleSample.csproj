@@ -18,7 +18,6 @@
 		<SingleProject>true</SingleProject>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<MauiVersion>11.0.100</MauiVersion>
 
 		<!-- Display name -->
 		<ApplicationTitle>SilkTriangleSample</ApplicationTitle>

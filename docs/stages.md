@@ -1,6 +1,6 @@
 # Orbit3D Stages
 
-This document is the implementation roadmap for Orbit3D. Each stage has a focused scope and a definition of done (DoD). Completed stages describe the functionality already integrated into `main`; planned stages describe the next runtime milestones.
+This document is the implementation roadmap for Orbit3D. Each stage has a focused scope and a definition of done (DoD). Stages 01–11 are completed and integrated into `main`. New runtime milestones will be proposed as subsequent stages.
 
 ## Platform target/version policy
 
@@ -292,7 +292,7 @@ Stage 11 introduces runtime 3D skeletal/skinning animation after all four MAUI g
 - **Validated**: `Orbit3D.Engine.Tests` (`net11.0`: 60/60, `net11.0-windows10.0.19041.0`: 74/74), `AnimationSample.UITests` (`Category=Artifact`: 4/4, `Platform=Android` on `emulator-5554`: 5/5), and direct Windows `AnimationSample.exe` WGL execution (`OpenGL 3.3.0`, RTX 3060).
 - **Phase 1 Host Limitation (Subsequently Resolved in Phase 3)**: Windows Appium UI tests were initially blocked during Phase 1 (`WinAppDriver.exe` not installed; `wincore` session configuration pending); this was resolved in Phase 3 via `wincore@4.1.2`.
 
-### Stage 11 Phase 2 Status (iOS & Mac Catalyst — Validated on macOS 27.2.1; Stage 11 Review Pending)
+### Stage 11 Phase 2 Status (iOS & Mac Catalyst — Validated on macOS 27.2.1)
 - **MAUI Version Alignment**: Standardized `MauiVersion` to `11.0.10` (published NuGet 11.x package; `11.0.100` does not exist on nuget.org and caused `NU1102`) in `Directory.Build.props`, and removed redundant/mismatched `MauiVersion` overrides from `AnimationSample.csproj`, `SilkTriangleSample.csproj`, `Orbit3D.Engine.csproj`, and `Orbit.Engine.Tests.csproj`.
 - **Apple Scene Startup**: Added missing `SceneDelegate.cs` (`MauiUISceneDelegate`) to `games/3D/AnimationSample/Platforms/iOS/` and `games/3D/AnimationSample/Platforms/MacCatalyst/` so UIKit's `UIApplicationSceneManifest` creates the MAUI window on Apple targets.
 - **iOS (`net11.0-ios`, `iossimulator-arm64`)**: Reused `SilkIosSurfaceView` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0, `#version 300 es`, `RGBA32F` `4x128` `uBoneTexture`). `IosAnimationTests` (`xcuitest`) passed **6/6** on `iPhone 17 — iOS 27.2` Simulator (`62EB87F6-E890-4118-AAA2-5864621757BF`), confirming `Idle.fbx` import (`88` bones, `240` nodes, `16` draw calls, `32,888` triangles), advancing animation time and `PoseHash`, playback controls, 2 consecutive context recreation cycles, and visually verified skeletal deformation.
@@ -305,4 +305,8 @@ Stage 11 introduces runtime 3D skeletal/skinning animation after all four MAUI g
 - **Android (`net11.0-android`, `MauiVersion=11.0.10`)**: Rebuilt Release APK with centralized `MauiVersion=11.0.10` and revalidated `AndroidAnimationTests` using Appium `4.0.0` + `uiautomator2@9.2.1` on `emulator-5554` (`pixel_7_-_api_36_0_1`): **5/5** passed, with screenshot verification of GPU-skinned `Idle.fbx`.
 - **Unit & Artifact Tests**: `Orbit.Engine.Tests` (`net11.0`: **2/2**), `Orbit3D.Engine.Tests` (`net11.0`: **60/60**, `net11.0-windows10.0.19041.0`: **74/74**), and `AnimationSample.UITests` (`Category=Artifact`: **4/4**).
 - **Evidence**: Archived under `artifacts/stage-11/phase-3/{environment,windows,android,unit-tests,regression,summary}/`.
-- **Evidence**: Preserved under `artifacts/stage-11/phase-2/{ios,maccatalyst,unit-tests,regression,summary}/`. Stage 11 remains open pending final cross-platform review.
+- **Evidence**: Preserved under `artifacts/stage-11/phase-2/{ios,maccatalyst,unit-tests,regression,summary}/`.
+
+### Stage 11 Completion
+
+Stage 11 is complete. Its implementation and required runtime validation are documented across Windows, Android, iOS, and Mac Catalyst. The initial Windows Appium limitation recorded in Phase 1 was resolved during Phase 3; all four platform-specific animation UI test suites passed. The unrelated Windows-TFM headless `Orbit.Engine.Tests` regression and platform-specific validation constraints remain documented as limitations, not as blockers for Stage 11.

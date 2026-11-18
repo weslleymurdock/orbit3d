@@ -11,8 +11,13 @@ namespace Orbit3D.Graphics.Silk;
 /// </summary>
 public sealed class SilkRenderer3D : IRenderer3D
 {
+    /// <summary>Maximum number of bone matrices supported by the GPU skinning UBO.</summary>
+    public const int MaxSupportedBones = 128;
+
     private readonly Dictionary<int, ITextureResource> boundTextures = [];
     private readonly RenderMetricsTracker renderMetricsTracker = new();
+    private readonly Matrix4x4[] bonePalette = new Matrix4x4[MaxSupportedBones];
+    private readonly float[] boneUploadBuffer = new float[MaxSupportedBones * 16];
     private Vector3 lightDirection = new(-0.3f, -1f, -1f);
     private Vector3 lightColor = Vector3.One;
     private Material3D? material;
@@ -21,6 +26,9 @@ public sealed class SilkRenderer3D : IRenderer3D
     private Matrix4x4 projection = Matrix4x4.Identity;
     private Matrix4x4 world = Matrix4x4.Identity;
     private IRenderTarget? activeTarget;
+    private uint boneTexture;
+    private int activeBoneCount;
+    private bool bonePaletteDirty = true;
 
     private bool frameActive;
 
@@ -32,6 +40,7 @@ public sealed class SilkRenderer3D : IRenderer3D
         ArgumentNullException.ThrowIfNull(device);
         Device = device;
         Viewport = new Viewport(0, 0, 0, 0);
+        Array.Fill(bonePalette, Matrix4x4.Identity);
     }
 
     /// <inheritdoc />
@@ -185,6 +194,19 @@ public sealed class SilkRenderer3D : IRenderer3D
     }
 
     /// <inheritdoc />
+    public void SetBoneMatrices(ReadOnlySpan<Matrix4x4> boneMatrices)
+    {
+        EnsureActive();
+        var count = Math.Min(boneMatrices.Length, MaxSupportedBones);
+        boneMatrices[..count].CopyTo(bonePalette);
+        if (count < activeBoneCount)
+            Array.Fill(bonePalette, Matrix4x4.Identity, count, activeBoneCount - count);
+
+        activeBoneCount = count;
+        bonePaletteDirty = true;
+    }
+
+    /// <inheritdoc />
     public void DrawIndexed(IVertexBuffer vertexBuffer, IIndexBuffer indexBuffer, int indexCount, int startIndex = 0, int baseVertex = 0)
     {
         EnsureActive();
@@ -250,6 +272,9 @@ public sealed class SilkRenderer3D : IRenderer3D
         if (useTextureLocation >= 0)
             gl.Uniform1(useTextureLocation, texture is null ? 0 : 1);
 
+        if (shader.Description.Kind is ShaderProgramKind.BasicLitSkinned or ShaderProgramKind.BasicLitTexturedSkinned)
+            UploadAndBindBoneTexture(gl, shader.Handle);
+
         gl.BindVertexArray(vertices.VertexArray);
         gl.BindBuffer(BufferTargetARB.ArrayBuffer, vertices.Handle);
         SilkRenderDevice.ConfigureVertexLayout(gl, vertices.Description.StrideInBytes, baseVertex);
@@ -278,10 +303,60 @@ public sealed class SilkRenderer3D : IRenderer3D
             return;
 
         IsDisposed = true;
+        if (boneTexture != 0)
+        {
+            if (!Device.IsDisposed && Device is SilkRenderDevice silkDevice && silkDevice.Context.IsCurrent)
+                silkDevice.Context.Api.DeleteTexture(boneTexture);
+            boneTexture = 0;
+        }
         currentPipeline = null;
         boundTextures.Clear();
         material = null;
         activeTarget = null;
+    }
+
+    private void UploadAndBindBoneTexture(GL gl, uint program)
+    {
+        gl.ActiveTexture(TextureUnit.Texture1);
+        if (boneTexture == 0)
+        {
+            boneTexture = gl.GenTexture();
+            gl.BindTexture(TextureTarget.Texture2D, boneTexture);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            gl.TexImage2D(TextureTarget.Texture2D, 0, (int)InternalFormat.Rgba32f,
+                4, MaxSupportedBones, 0, PixelFormat.Rgba, PixelType.Float, ReadOnlySpan<byte>.Empty);
+            bonePaletteDirty = true;
+        }
+        else
+        {
+            gl.BindTexture(TextureTarget.Texture2D, boneTexture);
+        }
+
+        if (bonePaletteDirty)
+        {
+            var uploadCount = Math.Max(activeBoneCount, 1);
+            for (var i = 0; i < uploadCount; i++)
+            {
+                var m = bonePalette[i];
+                var o = i * 16;
+                boneUploadBuffer[o + 0] = m.M11; boneUploadBuffer[o + 1] = m.M12; boneUploadBuffer[o + 2] = m.M13; boneUploadBuffer[o + 3] = m.M14;
+                boneUploadBuffer[o + 4] = m.M21; boneUploadBuffer[o + 5] = m.M22; boneUploadBuffer[o + 6] = m.M23; boneUploadBuffer[o + 7] = m.M24;
+                boneUploadBuffer[o + 8] = m.M31; boneUploadBuffer[o + 9] = m.M32; boneUploadBuffer[o + 10] = m.M33; boneUploadBuffer[o + 11] = m.M34;
+                boneUploadBuffer[o + 12] = m.M41; boneUploadBuffer[o + 13] = m.M42; boneUploadBuffer[o + 14] = m.M43; boneUploadBuffer[o + 15] = m.M44;
+            }
+
+            gl.TexSubImage2D<float>(TextureTarget.Texture2D, 0, 0, 0, 4, (uint)uploadCount,
+                PixelFormat.Rgba, PixelType.Float, boneUploadBuffer.AsSpan(0, uploadCount * 16));
+            bonePaletteDirty = false;
+        }
+
+        var location = gl.GetUniformLocation(program, "uBoneTexture");
+        if (location >= 0)
+            gl.Uniform1(location, 1);
+        gl.ActiveTexture(TextureUnit.Texture0);
     }
 
     private void EnsureActive()

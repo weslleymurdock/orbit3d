@@ -81,21 +81,34 @@ public sealed class AssimpModelImporter : IModelImporter
 
         for (uint materialIndex = 0; materialIndex < scene.NumMaterials; materialIndex++)
         {
-            var material = scene.GetMaterial(materialIndex);
+            using var material = scene.GetMaterial(materialIndex);
             if (material is not null)
                 model.Materials.Add(ConvertMaterial(material, model));
         }
 
+        var hasBones = false;
         for (uint meshIndex = 0; meshIndex < scene.NumMeshes; meshIndex++)
         {
-            var mesh = scene.GetMesh(meshIndex);
+            using var mesh = scene.GetMesh(meshIndex);
             if (mesh is not null)
+            {
+                if (mesh.HasBones())
+                    hasBones = true;
                 model.Meshes.Add(ConvertMesh(mesh));
+            }
         }
 
-        var root = scene.GetRootNode();
+        using var root = scene.GetRootNode();
         if (root is not null)
+        {
             ConvertNode(root, model.RootNode, model);
+
+            if (hasBones || scene.HasAnimations())
+                ConvertSkeletonAndSkinning(scene, root, model);
+        }
+
+        if (scene.HasAnimations())
+            ConvertAnimations(scene, model);
 
         return model;
     }
@@ -296,7 +309,7 @@ public sealed class AssimpModelImporter : IModelImporter
 
         for (uint childIndex = 0; childIndex < node.GetChildCount(); childIndex++)
         {
-            var child = node.GetChild(childIndex);
+            using var child = node.GetChild(childIndex);
             if (child is null)
                 continue;
 
@@ -305,5 +318,227 @@ public sealed class AssimpModelImporter : IModelImporter
             ConvertNode(child, childNode, model);
         }
     }
+
+    private static void ConvertSkeletonAndSkinning(Scene scene, Node root, Model3D model)
+    {
+        var skeletonNodes = new List<SkeletonNode>();
+        var nodeNameToIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+        FlattenSkeletonNodes(root, -1, skeletonNodes, nodeNameToIndex);
+
+        if (skeletonNodes.Count == 0)
+            return;
+
+        Matrix4x4.Invert(skeletonNodes[0].BindLocalTransform, out var globalInverse);
+        if (float.IsNaN(globalInverse.M11))
+            globalInverse = Matrix4x4.Identity;
+
+        var bones = new List<Bone3D>();
+        var boneNameToIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        for (uint meshIndex = 0; meshIndex < scene.NumMeshes && (int)meshIndex < model.Meshes.Count; meshIndex++)
+        {
+            using var assimpMesh = scene.GetMesh(meshIndex);
+            if (assimpMesh is null || !assimpMesh.HasBones())
+                continue;
+
+            var orbitMesh = model.Meshes[(int)meshIndex];
+            var vertexCount = orbitMesh.Positions?.Length ?? 0;
+            if (vertexCount <= 0)
+                continue;
+
+            var skinning = new SkinningData(vertexCount);
+            for (uint boneIdx = 0; boneIdx < assimpMesh.NumBones; boneIdx++)
+            {
+                using var assimpBone = assimpMesh.GetBone(boneIdx);
+                if (assimpBone is null)
+                    continue;
+
+                var boneName = assimpBone.GetName() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(boneName))
+                    continue;
+
+                if (!boneNameToIndex.TryGetValue(boneName, out var globalBoneIndex))
+                {
+                    if (!nodeNameToIndex.TryGetValue(boneName, out var nodeIndex))
+                        nodeIndex = 0;
+
+                    var offsetMatrix = ReadBoneOffsetMatrixTransposed(assimpBone);
+                    var bindLocal = skeletonNodes[nodeIndex].BindLocalTransform;
+                    globalBoneIndex = bones.Count;
+                    boneNameToIndex.Add(boneName, globalBoneIndex);
+                    bones.Add(new Bone3D(globalBoneIndex, boneName, nodeIndex, -1, offsetMatrix, bindLocal));
+                }
+
+                var weightCount = assimpBone.GetWeightCount();
+                for (uint wi = 0; wi < weightCount; wi++)
+                {
+                    var vertexId = checked((int)assimpBone.GetWeightVertexId(wi));
+                    var weight = assimpBone.GetWeight(wi);
+                    if ((uint)vertexId < (uint)vertexCount)
+                        skinning.AddInfluence(vertexId, globalBoneIndex, weight);
+                }
+            }
+
+            orbitMesh.Skinning = skinning;
+        }
+
+        // Resolve ParentBoneIndex by walking up SkeletonNode.ParentIndex until a node corresponds to a Bone3D.
+        var nodeIndexToBoneIndex = new Dictionary<int, int>(bones.Count);
+        for (var i = 0; i < bones.Count; i++)
+            nodeIndexToBoneIndex.TryAdd(bones[i].NodeIndex, i);
+
+        for (var i = 0; i < bones.Count; i++)
+        {
+            var bone = bones[i];
+            var parentBoneIndex = -1;
+            var parentNodeIdx = skeletonNodes[bone.NodeIndex].ParentIndex;
+            while (parentNodeIdx >= 0)
+            {
+                if (nodeIndexToBoneIndex.TryGetValue(parentNodeIdx, out var candidateBone))
+                {
+                    parentBoneIndex = candidateBone;
+                    break;
+                }
+                parentNodeIdx = skeletonNodes[parentNodeIdx].ParentIndex;
+            }
+
+            if (parentBoneIndex != bone.ParentBoneIndex)
+            {
+                bones[i] = new Bone3D(
+                    bone.Index,
+                    bone.Name,
+                    bone.NodeIndex,
+                    parentBoneIndex,
+                    bone.InverseBindMatrix,
+                    bone.BindLocalTransform);
+            }
+        }
+
+        var boneCount = bones.Count;
+        foreach (var mesh in model.Meshes)
+            mesh.Skinning?.ValidateAndNormalize(boneCount);
+
+        model.Skeleton = new Skeleton3D(root.GetName() ?? "Skeleton", skeletonNodes, bones, globalInverse);
+    }
+
+    private static void FlattenSkeletonNodes(
+        Node node,
+        int parentIndex,
+        List<SkeletonNode> nodes,
+        Dictionary<string, int> nameToIndex)
+    {
+        var index = nodes.Count;
+        var name = node.GetName() ?? string.Empty;
+        var localMatrix = ReadNodeTransformTransposed(node);
+
+        if (!Matrix4x4.Decompose(localMatrix, out var scale, out var rotation, out var position))
+        {
+            scale = Vector3.One;
+            rotation = Quaternion.Identity;
+            position = new Vector3(localMatrix.M41, localMatrix.M42, localMatrix.M43);
+        }
+
+        nodes.Add(new SkeletonNode(index, name, parentIndex, localMatrix, position, Quaternion.Normalize(rotation), scale));
+        if (!string.IsNullOrEmpty(name))
+            nameToIndex.TryAdd(name, index);
+
+        for (uint childIndex = 0; childIndex < node.GetChildCount(); childIndex++)
+        {
+            using var child = node.GetChild(childIndex);
+            if (child is not null)
+                FlattenSkeletonNodes(child, index, nodes, nameToIndex);
+        }
+    }
+
+    private static void ConvertAnimations(Scene scene, Model3D model)
+    {
+        for (uint animIndex = 0; animIndex < scene.NumAnimations; animIndex++)
+        {
+            using var anim = scene.GetAnimation(animIndex);
+            if (anim is null)
+                continue;
+
+            var name = anim.GetName();
+            if (string.IsNullOrWhiteSpace(name))
+                name = $"Animation_{animIndex}";
+
+            var duration = anim.GetDuration();
+            var ticksPerSecond = anim.GetTicksPerSecond();
+            var channels = new List<AnimationChannel3D>(checked((int)anim.NumChannels));
+
+            for (uint chIndex = 0; chIndex < anim.NumChannels; chIndex++)
+            {
+                using var ch = anim.GetChannel(chIndex);
+                if (ch is null)
+                    continue;
+
+                var nodeName = ch.GetNodeName();
+                if (string.IsNullOrWhiteSpace(nodeName))
+                    continue;
+
+                var posCount = checked((int)ch.GetPositionKeyCount());
+                var posKeys = new VectorKeyframe[posCount];
+                for (uint i = 0; i < (uint)posCount; i++)
+                {
+                    posKeys[i] = new VectorKeyframe(
+                        ch.GetPositionKeyTime(i),
+                        new Vector3(
+                            ch.GetPositionKeyComponent(i, 0),
+                            ch.GetPositionKeyComponent(i, 1),
+                            ch.GetPositionKeyComponent(i, 2)));
+                }
+
+                var rotCount = checked((int)ch.GetRotationKeyCount());
+                var rotKeys = new QuaternionKeyframe[rotCount];
+                for (uint i = 0; i < (uint)rotCount; i++)
+                {
+                    // Assimp aiQuaternion component order is [0]=w, [1]=x, [2]=y, [3]=z.
+                    var w = ch.GetRotationKeyComponent(i, 0);
+                    var x = ch.GetRotationKeyComponent(i, 1);
+                    var y = ch.GetRotationKeyComponent(i, 2);
+                    var z = ch.GetRotationKeyComponent(i, 3);
+                    rotKeys[i] = new QuaternionKeyframe(
+                        ch.GetRotationKeyTime(i),
+                        Quaternion.Normalize(new Quaternion(x, y, z, w)));
+                }
+
+                var scaleCount = checked((int)ch.GetScalingKeyCount());
+                var scaleKeys = new VectorKeyframe[scaleCount];
+                for (uint i = 0; i < (uint)scaleCount; i++)
+                {
+                    scaleKeys[i] = new VectorKeyframe(
+                        ch.GetScalingKeyTime(i),
+                        new Vector3(
+                            ch.GetScalingKeyComponent(i, 0),
+                            ch.GetScalingKeyComponent(i, 1),
+                            ch.GetScalingKeyComponent(i, 2)));
+                }
+
+                channels.Add(new AnimationChannel3D(nodeName, posKeys, rotKeys, scaleKeys));
+            }
+
+            model.Animations.Add(new AnimationClip3D(name, duration, ticksPerSecond, channels));
+        }
+    }
+
+    private static Matrix4x4 ReadNodeTransformTransposed(Node node) => new(
+        node.GetTransformationElement(0, 0), node.GetTransformationElement(1, 0),
+        node.GetTransformationElement(2, 0), node.GetTransformationElement(3, 0),
+        node.GetTransformationElement(0, 1), node.GetTransformationElement(1, 1),
+        node.GetTransformationElement(2, 1), node.GetTransformationElement(3, 1),
+        node.GetTransformationElement(0, 2), node.GetTransformationElement(1, 2),
+        node.GetTransformationElement(2, 2), node.GetTransformationElement(3, 2),
+        node.GetTransformationElement(0, 3), node.GetTransformationElement(1, 3),
+        node.GetTransformationElement(2, 3), node.GetTransformationElement(3, 3));
+
+    private static Matrix4x4 ReadBoneOffsetMatrixTransposed(Bone bone) => new(
+        bone.GetOffsetMatrixElement(0, 0), bone.GetOffsetMatrixElement(1, 0),
+        bone.GetOffsetMatrixElement(2, 0), bone.GetOffsetMatrixElement(3, 0),
+        bone.GetOffsetMatrixElement(0, 1), bone.GetOffsetMatrixElement(1, 1),
+        bone.GetOffsetMatrixElement(2, 1), bone.GetOffsetMatrixElement(3, 1),
+        bone.GetOffsetMatrixElement(0, 2), bone.GetOffsetMatrixElement(1, 2),
+        bone.GetOffsetMatrixElement(2, 2), bone.GetOffsetMatrixElement(3, 2),
+        bone.GetOffsetMatrixElement(0, 3), bone.GetOffsetMatrixElement(1, 3),
+        bone.GetOffsetMatrixElement(2, 3), bone.GetOffsetMatrixElement(3, 3));
 }
 #endif

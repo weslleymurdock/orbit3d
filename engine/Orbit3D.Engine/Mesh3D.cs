@@ -91,6 +91,11 @@ public class Mesh3D
     public int MaterialIndex { get; set; } = -1;
 
     /// <summary>
+    /// Gets or sets optional skeletal skinning influences for this mesh.
+    /// </summary>
+    public SkinningData? Skinning { get; set; }
+
+    /// <summary>
     /// Validates that the mesh data is well-formed.
     /// </summary>
     /// <returns>True if the mesh is valid.</returns>
@@ -103,6 +108,7 @@ public class Mesh3D
         if (Tangents != null && Tangents.Length != vertexCount) return false;
         if (TextureCoordinates != null && TextureCoordinates.Length != vertexCount) return false;
         if (Colors != null && Colors.Length != vertexCount) return false;
+        if (Skinning != null && Skinning.VertexCount != vertexCount) return false;
 
         if (IndexFormat == IndexFormat.UInt16 && (Indices16 == null || Indices16.Length == 0)) return false;
         if (IndexFormat == IndexFormat.UInt32 && (Indices32 == null || Indices32.Length == 0)) return false;

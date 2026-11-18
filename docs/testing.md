@@ -73,6 +73,15 @@ Stage 10 completed the cross-platform rendering baseline across all four support
   - `SilkTriangleSample.UITests`: 9/9 UI automation tests passed.
 - Evidence artifacts are archived under `artifacts/stage-10/{windows,android,ios,maccatalyst,summary}/`.
 
+## Stage 11 Phase 1 skeletal animation status (Windows & Android)
+Phase 1 implemented and validated runtime skeletal animation for `assets/Idle.fbx` (88 bones, 4 meshes, 5,420 vertices, 8,222 faces, `mixamo.com` 4.0s clip at 60 ticks/sec) on Windows and Android:
+- **GPU Skinning Strategy**: Uses a `4x128` `RGBA32F` `uBoneTexture` on `TextureUnit.Texture1` sampled via `texelFetch` in `BasicLitSkinned` / `BasicLitTexturedSkinned` shaders (`#version 330 core` on desktop GL, `#version 300 es` on GLES 3.0) instead of a 128-bone UBO, avoiding Android SwiftShader GLES 3.0 `GL_MAX_VERTEX_UNIFORM_VECTORS (256)` shader compilation limits.
+- **Unit Tests (`Orbit3D.Engine.Tests`)**: 60/60 passed on `net11.0`; 74/74 passed on `net11.0-windows10.0.19041.0` (including `IdleFbxImporterTests` and `SkeletalAnimationTests`).
+- **Android (`net11.0-android`)**: `AnimationSample` (`com.remotecodehub.animationsample`) and `AnimationSample.UITests` (`Platform=Android`, `uiautomator2`) passed 5/5 on `emulator-5554`, including playback progression, pause/resume/loop/speed controls, context recreation recovery, and screenshot verification.
+- **Windows (`net11.0-windows10.0.19041.0`)**: Direct execution of `AnimationSample.exe` confirmed WGL OpenGL 3.3.0 context creation (`NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2`) and `MainWindowHandle` creation without errors. Automated Windows Appium UI tests are **blocked** on this host (`WinAppDriver.exe` not installed; `wincore@4.1.2` cannot enumerate windows in the container session).
+- **Evidence**: Archived under `artifacts/stage-11/phase-1/{windows,android,unit-tests,ui-tests}/`.
+- **Apple (iOS / Mac Catalyst)**: Explicitly deferred to Stage 11 Phase 2.
+
 ## Integration tests
 Where practical, validate Assimp imports, hierarchy conversion, texture resolution and GPU resource creation. Ordinary unit tests must not require a platform graphics device.
 

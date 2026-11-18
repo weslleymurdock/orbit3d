@@ -101,7 +101,7 @@ Each platform implements the Page Object pattern (`BasePage`), isolating UI auto
 
 The repository pins the following toolchain baseline:
 - **.NET SDK:** `11.0.100` (pinned in [`global.json`](../../global.json), `rollForward: disable`).
-- **MAUI Version:** `10.0.0` in [`Directory.Build.props`](../../Directory.Build.props) (`SilkTriangleSample.csproj` sets `10.0.110`).
+- **MAUI Version:** `11.0.100` in [`Directory.Build.props`](../../Directory.Build.props) (`SilkTriangleSample.csproj` sets `11.0.100`).
 - **macOS Host:** `macOS 27.2` with `.NET SDK 11.0.100` and the Apple/MAUI toolchain (confirm exact Xcode and workload versions on the remote host).
 
 Workloads required per platform:
@@ -303,4 +303,10 @@ Agents must never wait for CI or use CI results as a substitute for executing ap
 ### 13.2 Platform Constraints
 - **Mac Catalyst:** Requires macOS Accessibility permissions for Appium `mac2` and an active display power state (`caffeinate -u` over SSH) for `CADisplayLink`/`CAOpenGLLayer` frame callbacks.
 - **Android / Windows UI Tests:** Executed locally on the Windows workstation against a connected Android device/emulator and Windows desktop, never via CI substitution.
+
+### 13.3 Stage 11 Phase 1: `AnimationSample.UITests`
+- **Dedicated Project:** `games/3D/AnimationSample.UITests/` tests `games/3D/AnimationSample/` (`com.remotecodehub.animationsample`) independently of `SilkTriangleSample.UITests/`.
+- **Android (`Platform=Android`, `uiautomator2`):** Passed 5/5 on `emulator-5554` (`AppLaunchesAndInitialUiIsVisible`, `GraphicsSurfaceAndContextInitialize`, `IdleFbxLoadsSkeletonSkinningAndClips`, `AnimationPlaysTimeProgressesAndControlsWork`, `ContextRecreationPreservesAnimationAndCapturesScreenshot`). Note: MAUI `AutomationId` values resolve via `resource-id` (`com.remotecodehub.animationsample:id/<AutomationId>`) on Android, and diagnostics label updates are throttled (`600ms`) with `waitForIdleTimeout = 0` so continuous 3D rendering does not stall UiAutomator2 queries.
+- **Artifact Discovery (`Category=Artifact`):** Passed 4/4.
+- **Windows (`Platform=Windows`):** Requires `WinAppDriver.exe` (or an interactive desktop session for `wincore`); currently blocked on container/headless host environments lacking `WinAppDriver.exe`.
 

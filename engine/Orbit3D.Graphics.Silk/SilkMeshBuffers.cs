@@ -59,22 +59,52 @@ public sealed class SilkMeshBuffers : IDisposable
 
         var normals = mesh.Normals;
         var uvs = mesh.TextureCoordinates;
-        var tangents = normals is not null && uvs is not null ? mesh.Tangents : null;
-        var hasNormals = normals is not null;
-        var hasUvs = uvs is not null;
-        var stride = sizeof(float) * (3 + (hasNormals ? 3 : 0) + (hasUvs ? 2 : 0) + (tangents is not null ? 3 : 0));
-        var vertexData = new byte[checked(positions.Length * stride)];
-        for (var vertexIndex = 0; vertexIndex < positions.Length; vertexIndex++)
+        var skinning = mesh.Skinning;
+        byte[] vertexData;
+        int stride;
+
+        if (skinning is not null)
         {
-            var destination = vertexData.AsSpan(vertexIndex * stride, stride);
-            var offset = 0;
-            WriteVector3(destination, ref offset, positions[vertexIndex]);
-            if (normals is not null)
-                WriteVector3(destination, ref offset, normals[vertexIndex]);
-            if (uvs is not null)
-                WriteVector2(destination, ref offset, uvs[vertexIndex]);
-            if (tangents is not null)
-                WriteVector3(destination, ref offset, tangents[vertexIndex]);
+            // Skinned layout (64 bytes): Position(3f) + Normal(3f) + UV(2f) + BoneIndices(4f) + BoneWeights(4f).
+            stride = sizeof(float) * 16;
+            vertexData = new byte[checked(positions.Length * stride)];
+            for (var vertexIndex = 0; vertexIndex < positions.Length; vertexIndex++)
+            {
+                var destination = vertexData.AsSpan(vertexIndex * stride, stride);
+                var offset = 0;
+                WriteVector3(destination, ref offset, positions[vertexIndex]);
+                WriteVector3(destination, ref offset, normals is not null ? normals[vertexIndex] : Vector3.UnitY);
+                WriteVector2(destination, ref offset, uvs is not null ? uvs[vertexIndex] : Vector2.Zero);
+
+                var boneBase = vertexIndex * SkinningData.MaxInfluencesPerVertex;
+                var boneIndices = new Vector4(
+                    skinning.BoneIndices[boneBase + 0],
+                    skinning.BoneIndices[boneBase + 1],
+                    skinning.BoneIndices[boneBase + 2],
+                    skinning.BoneIndices[boneBase + 3]);
+                WriteVector4(destination, ref offset, boneIndices);
+                WriteVector4(destination, ref offset, skinning.BoneWeights[vertexIndex]);
+            }
+        }
+        else
+        {
+            var tangents = normals is not null && uvs is not null ? mesh.Tangents : null;
+            var hasNormals = normals is not null;
+            var hasUvs = uvs is not null;
+            stride = sizeof(float) * (3 + (hasNormals ? 3 : 0) + (hasUvs ? 2 : 0) + (tangents is not null ? 3 : 0));
+            vertexData = new byte[checked(positions.Length * stride)];
+            for (var vertexIndex = 0; vertexIndex < positions.Length; vertexIndex++)
+            {
+                var destination = vertexData.AsSpan(vertexIndex * stride, stride);
+                var offset = 0;
+                WriteVector3(destination, ref offset, positions[vertexIndex]);
+                if (normals is not null)
+                    WriteVector3(destination, ref offset, normals[vertexIndex]);
+                if (uvs is not null)
+                    WriteVector2(destination, ref offset, uvs[vertexIndex]);
+                if (tangents is not null)
+                    WriteVector3(destination, ref offset, tangents[vertexIndex]);
+            }
         }
 
         var indexCount = mesh.IndexFormat == IndexFormat.UInt16 ? mesh.Indices16!.Length : mesh.Indices32!.Length;
@@ -116,6 +146,18 @@ public sealed class SilkMeshBuffers : IDisposable
         BinaryPrimitives.WriteSingleLittleEndian(destination[offset..], value.Y);
         offset += sizeof(float);
         BinaryPrimitives.WriteSingleLittleEndian(destination[offset..], value.Z);
+        offset += sizeof(float);
+    }
+
+    private static void WriteVector4(Span<byte> destination, ref int offset, Vector4 value)
+    {
+        BinaryPrimitives.WriteSingleLittleEndian(destination[offset..], value.X);
+        offset += sizeof(float);
+        BinaryPrimitives.WriteSingleLittleEndian(destination[offset..], value.Y);
+        offset += sizeof(float);
+        BinaryPrimitives.WriteSingleLittleEndian(destination[offset..], value.Z);
+        offset += sizeof(float);
+        BinaryPrimitives.WriteSingleLittleEndian(destination[offset..], value.W);
         offset += sizeof(float);
     }
 }

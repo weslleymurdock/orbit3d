@@ -285,3 +285,10 @@ Stage 11 introduces runtime 3D skeletal/skinning animation after all four MAUI g
 
 > [!IMPORTANT]
 > Do not mark Stage 11 complete merely because animation engine unit tests pass; both the engine functionality and the dedicated `AnimationSample` + `AnimationSample.UITests` must be validated on all four platforms.
+
+### Stage 11 Phase 1 Status (Windows & Android — In Progress; Apple Pending Phase 2)
+- Implemented backend-neutral skeletal animation (`Skeleton3D`, `SkinningData`, `AnimationClip3D`, `AnimationEvaluator`), `AssimpModelImporter` skeletal/clip conversion for `assets/Idle.fbx` (88 bones, 5,420 vertices, 8,222 faces, `mixamo.com` clip), and `Orbit3D.Graphics.Silk` GPU skinning using an `RGBA32F` `4x128` `uBoneTexture` (`texelFetch`, `MaxSupportedBones = 128`) compatible with both OpenGL 3.3 Core (Windows WGL) and OpenGL ES 3.0 (Android).
+- Created `games/3D/AnimationSample/` (`com.remotecodehub.animationsample`) and `games/3D/AnimationSample.UITests/` and integrated both into `games/3D/Orbit3D.Games.slnx`.
+- **Validated**: `Orbit3D.Engine.Tests` (`net11.0`: 60/60, `net11.0-windows10.0.19041.0`: 74/74), `AnimationSample.UITests` (`Category=Artifact`: 4/4, `Platform=Android` on `emulator-5554`: 5/5), and direct Windows `AnimationSample.exe` WGL execution (`OpenGL 3.3.0`, RTX 3060).
+- **Blocked on host**: Windows Appium UI tests (`WinAppDriver.exe` not installed; `wincore` sees 0 child windows in non-interactive session).
+- **Deferred to Phase 2**: iOS (`xcuitest`) and Mac Catalyst (`mac2`) implementation and validation on macOS `27.2`.

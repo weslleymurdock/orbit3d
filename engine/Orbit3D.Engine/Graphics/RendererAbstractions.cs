@@ -115,7 +115,11 @@ public enum ShaderProgramKind
     /// <summary>Unlit material-color and texture shading.</summary>
     UnlitTextured,
     /// <summary>Material-color and texture shading with directional lighting.</summary>
-    BasicLitTextured
+    BasicLitTextured,
+    /// <summary>GPU-skinned material-color shading with directional lighting.</summary>
+    BasicLitSkinned,
+    /// <summary>GPU-skinned material-color and texture shading with directional lighting.</summary>
+    BasicLitTexturedSkinned
 }
 
 /// <summary>Describes a backend-neutral shader program contract without exposing shader language source.</summary>
@@ -448,6 +452,9 @@ public interface IRenderer3D : IDisposable
 
     /// <summary>Sets the lights used by subsequent draws.</summary>
     void SetLights(ReadOnlySpan<Light3D> lights);
+
+    /// <summary>Sets the bone skinning palette matrices used by subsequent skinned draws.</summary>
+    void SetBoneMatrices(ReadOnlySpan<Matrix4x4> boneMatrices);
 
     /// <summary>Draws indexed primitives using the topology and state of the current pipeline.</summary>
     /// <param name="vertexBuffer">Vertex buffer owned by <see cref="Device"/>.</param>

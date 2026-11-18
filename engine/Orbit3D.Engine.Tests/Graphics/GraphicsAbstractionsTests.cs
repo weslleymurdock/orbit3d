@@ -370,6 +370,8 @@ public class GraphicsAbstractionsTests
 
         public void SetWorldMatrix(Matrix4x4 world) => EnsureActive();
 
+        public void SetBoneMatrices(ReadOnlySpan<Matrix4x4> boneMatrices) => EnsureActive();
+
         public void SetPipeline(IRenderPipeline pipeline)
         {
             EnsureActive();

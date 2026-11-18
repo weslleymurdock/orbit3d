@@ -25,4 +25,24 @@ public class Model3D
     /// Gets the list of textures contained in this model.
     /// </summary>
     public List<Texture2D> Textures { get; } = new List<Texture2D>();
+
+    /// <summary>
+    /// Gets or sets the skeleton associated with this model, if any.
+    /// </summary>
+    public Skeleton3D? Skeleton { get; set; }
+
+    /// <summary>
+    /// Gets the list of skeletal animation clips imported with this model.
+    /// </summary>
+    public List<AnimationClip3D> Animations { get; } = new List<AnimationClip3D>();
+
+    /// <summary>
+    /// Gets a value indicating whether this model contains a skeleton with at least one bone.
+    /// </summary>
+    public bool HasSkeleton => Skeleton is not null && Skeleton.BoneCount > 0;
+
+    /// <summary>
+    /// Gets a value indicating whether this model contains at least one animation clip.
+    /// </summary>
+    public bool HasAnimations => Animations.Count > 0;
 }

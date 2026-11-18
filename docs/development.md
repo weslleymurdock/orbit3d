@@ -61,6 +61,7 @@ For each stage: inspect current code, read relevant guidance, make the smallest 
 - **Stage 08 (iOS)**: Established `SilkIosSurfaceView` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0) and CoreGraphics sidecar texture decoding in `SampleTextureLoader`.
 - **Stage 09 (Mac Catalyst)**: Established `SilkMacSurfaceView` (`CAOpenGLLayer` + CGL OpenGL 4.1 core profile) via `UseSilkGraphics()`. Build and run directly on macOS via `dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj -c Debug -f net11.0-maccatalyst`.
 - **Stage 10 (Cross-Platform Stabilization)**: Consolidated lifecycle, context recreation, CPU/GPU caching, and rendering consistency across Windows, Android, iOS, and Mac Catalyst.
+- **Stage 11 — Phase 1 (Windows & Android Skeletal Animation)**: Added backend-neutral `Skeleton3D`, `SkinningData`, `AnimationClip3D`, and `AnimationEvaluator` in `Orbit3D.Engine`, Assimp skeletal/clip import for `assets/Idle.fbx`, `RGBA32F` bone-texture GPU skinning in `Orbit3D.Graphics.Silk`, and `games/3D/AnimationSample/` + `games/3D/AnimationSample.UITests/`. Apple targets (iOS / Mac Catalyst) are deferred to Phase 2.
 
 ## Public API
 Public engine APIs require XML documentation. Prefer stable Orbit concepts over third-party implementation details.

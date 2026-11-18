@@ -133,7 +133,7 @@ And [`Directory.Build.props`](../../Directory.Build.props) suppresses strict min
   <PropertyGroup>
     <ValidateXcodeVersion>false</ValidateXcodeVersion>
     <_ValidateXcodeVersion>false</_ValidateXcodeVersion>
-    <MauiVersion>10.0.0</MauiVersion>
+    <MauiVersion>11.0.100</MauiVersion>
   </PropertyGroup>
 </Project>
 ```

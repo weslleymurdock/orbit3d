@@ -285,8 +285,8 @@ public sealed class SilkRenderDevice : IRenderDevice
 
     internal static void ConfigureVertexLayout(GL gl, int stride, int firstVertex = 0)
     {
-        if (stride is not (12 or 20 or 24 or 32 or 44))
-            throw new ArgumentException("Vertex stride must match position, position/UV, position/normal, position/normal/UV, or position/normal/UV/tangent layout.", nameof(stride));
+        if (stride is not (12 or 20 or 24 or 32 or 44 or 64))
+            throw new ArgumentException("Vertex stride must match position, position/UV, position/normal, position/normal/UV, position/normal/UV/tangent, or skinned layout.", nameof(stride));
 
         var offset = checked(firstVertex * stride);
         gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, (uint)stride, (nint)offset);
@@ -309,10 +309,18 @@ public sealed class SilkRenderDevice : IRenderDevice
             gl.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, (uint)stride, (nint)offset);
             gl.EnableVertexAttribArray(2);
             offset += sizeof(float) * 2;
-            if (stride >= 44)
+            if (stride == 44)
             {
                 gl.VertexAttribPointer(3, 3, VertexAttribPointerType.Float, false, (uint)stride, (nint)offset);
                 gl.EnableVertexAttribArray(3);
+            }
+            else if (stride == 64)
+            {
+                gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, (uint)stride, (nint)offset);
+                gl.EnableVertexAttribArray(3);
+                offset += sizeof(float) * 4;
+                gl.VertexAttribPointer(4, 4, VertexAttribPointerType.Float, false, (uint)stride, (nint)offset);
+                gl.EnableVertexAttribArray(4);
             }
         }
     }
@@ -320,7 +328,7 @@ public sealed class SilkRenderDevice : IRenderDevice
     private uint CompileProgram(ShaderProgramDescription description)
     {
         var gl = Context.Api;
-        var vertexSource = GetVertexSource(Context.IsOpenGles);
+        var vertexSource = GetVertexSource(description.Kind, Context.IsOpenGles);
         var fragmentSource = GetFragmentSource(description.Kind, Context.IsOpenGles);
         var vertexShader = CompileShader(ShaderType.VertexShader, vertexSource, "vertex");
         uint fragmentShader = 0;
@@ -335,6 +343,7 @@ public sealed class SilkRenderDevice : IRenderDevice
             gl.GetProgram(program, ProgramPropertyARB.LinkStatus, out var linked);
             if (linked == 0)
                 throw new InvalidOperationException($"Shader program link failed for '{description.Name}': {gl.GetProgramInfoLog(program)}");
+
             return program;
         }
         catch
@@ -366,7 +375,51 @@ public sealed class SilkRenderDevice : IRenderDevice
         throw new InvalidOperationException($"{stage} shader compilation failed: {log}");
     }
 
-    private static string GetVertexSource(bool gles) => gles ? """
+    private static string GetVertexSource(ShaderProgramKind kind, bool gles)
+    {
+        if (kind is ShaderProgramKind.BasicLitSkinned or ShaderProgramKind.BasicLitTexturedSkinned)
+        {
+            var header = gles ? "#version 300 es\nprecision highp float;\nprecision highp sampler2D;" : "#version 330 core";
+            return $$"""
+                {{header}}
+                layout(location = 0) in vec3 aPosition;
+                layout(location = 1) in vec3 aNormal;
+                layout(location = 2) in vec2 aUv;
+                layout(location = 3) in vec4 aBoneIndices;
+                layout(location = 4) in vec4 aBoneWeights;
+                uniform sampler2D uBoneTexture;
+                uniform mat4 uModel;
+                uniform mat4 uView;
+                uniform mat4 uProjection;
+                out vec3 vNormal;
+                out vec2 vUv;
+                mat4 loadBoneMatrix(int boneIndex) {
+                    vec4 c0 = texelFetch(uBoneTexture, ivec2(0, boneIndex), 0);
+                    vec4 c1 = texelFetch(uBoneTexture, ivec2(1, boneIndex), 0);
+                    vec4 c2 = texelFetch(uBoneTexture, ivec2(2, boneIndex), 0);
+                    vec4 c3 = texelFetch(uBoneTexture, ivec2(3, boneIndex), 0);
+                    return mat4(c0, c1, c2, c3);
+                }
+                void main() {
+                    mat4 skinMatrix =
+                        loadBoneMatrix(int(aBoneIndices.x)) * aBoneWeights.x +
+                        loadBoneMatrix(int(aBoneIndices.y)) * aBoneWeights.y +
+                        loadBoneMatrix(int(aBoneIndices.z)) * aBoneWeights.z +
+                        loadBoneMatrix(int(aBoneIndices.w)) * aBoneWeights.w;
+                    float totalWeight = aBoneWeights.x + aBoneWeights.y + aBoneWeights.z + aBoneWeights.w;
+                    if (totalWeight <= 0.0001) {
+                        skinMatrix = mat4(1.0);
+                    }
+                    vec4 skinnedPos = skinMatrix * vec4(aPosition, 1.0);
+                    vec3 skinnedNormal = mat3(skinMatrix) * aNormal;
+                    vNormal = mat3(uModel) * skinnedNormal;
+                    vUv = aUv;
+                    gl_Position = uProjection * uView * uModel * skinnedPos;
+                }
+                """;
+        }
+
+        return gles ? """
         #version 300 es
         precision highp float;
         layout(location = 0) in vec3 aPosition;
@@ -398,14 +451,15 @@ public sealed class SilkRenderDevice : IRenderDevice
             gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
         }
         """;
+    }
 
     private static string GetFragmentSource(ShaderProgramKind kind, bool gles)
     {
         var version = gles ? "#version 300 es\nprecision mediump float;\n" : "#version 330 core\n";
-        var lighting = kind is ShaderProgramKind.BasicLit or ShaderProgramKind.BasicLitTextured
+        var lighting = kind is ShaderProgramKind.BasicLit or ShaderProgramKind.BasicLitTextured or ShaderProgramKind.BasicLitSkinned or ShaderProgramKind.BasicLitTexturedSkinned
             ? "vec3 normal = length(vNormal) > 0.0001 ? normalize(vNormal) : vec3(0.0, 0.0, 1.0); float diffuse = max(dot(normal, normalize(-uLightDirection)), 0.0); color.rgb *= max(diffuse, 0.18) * uLightColor;\n"
             : string.Empty;
-        var texture = kind is ShaderProgramKind.UnlitTextured or ShaderProgramKind.BasicLitTextured
+        var texture = kind is ShaderProgramKind.UnlitTextured or ShaderProgramKind.BasicLitTextured or ShaderProgramKind.BasicLitTexturedSkinned
             ? "color *= texture(uBaseTexture, vUv);\n"
             : string.Empty;
         return $$"""

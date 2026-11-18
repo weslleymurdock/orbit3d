@@ -1,32 +1,32 @@
-# Apple Simulator Development and UI Testing (VS Code Remote - SSH + macOS)
+# Apple Development and UI Testing (VS Code Remote - SSH + macOS 27.2)
 
-This document defines the Stage 08 architecture and operational runbook for developing, building, running, and validating `SilkTriangleSample` on Apple targets using **Visual Studio Code Remote - SSH** from Windows 11 to a provisioned macOS host with the **iPhone Air — iOS 26.5 Simulator**.
+This document defines the authoritative architecture and operational runbook for developing, building, running, and validating Apple targets (`iOS` and `Mac Catalyst`) using **Visual Studio Code Remote - SSH** from Windows to the provisioned **macOS `27.2`** host.
+
+| Platform | Implementation | Build and Execution | Appium UI Tests |
+|---|---|---|---|
+| **Android** | Windows local VS Code | Windows local (device/emulator) | Windows local (`uiautomator2`) |
+| **Windows** | Windows local VS Code | Windows local | Windows local (`windows`) |
+| **iOS** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`xcuitest`) |
+| **Mac Catalyst** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`mac2`) |
 
 ---
 
 ## 1. Architecture Overview
 
 ```text
-Windows 11
+Windows Workstation
 └── Visual Studio Code
     └── Remote - SSH
-        └── Remote macOS Host (mini.local / 192.168.3.9)
-            ├── Git repository: /Users/weslleyluiz/git/orbit3d
-            ├── .NET SDK: 11.0.100 (workloadSet: 11.0.100.1)
-            ├── MAUI workloads: ios, maccatalyst, macos, maui
-            ├── Xcode: 26.6 (Build 17F113)
-            ├── iOS Simulator
-            │   └── iPhone Air - iOS 26.5 (34E134C7-25BB-4925-8A3A-65674A943E87)
-            ├── Antigravity Agent (Remote Extension Host)
+        └── Remote macOS 27.2 Host
+            ├── Git repository on macOS filesystem
+            ├── .NET SDK: 11.0.100 (pinned in global.json)
+            ├── Apple Xcode & MAUI workloads (confirm exact versions on remote host)
+            ├── iOS Simulator & Mac Catalyst runtime
+            ├── Agent Extension Host (runs directly on macOS)
             ├── Build tools & Appium Server (XCUITest / Mac2)
             ├── Unit tests (Orbit.Engine.Tests, Orbit3D.Engine.Tests)
-            ├── UI tests (SilkTriangleSample.UITests)
-            └── artifacts/
-                └── apple/
-                    └── stage-08/
-                        ├── screenshots/
-                        ├── logs/
-                        └── test-results/
+            ├── UI tests (SilkTriangleSample.UITests, future AnimationSample.UITests)
+            └── artifacts/ (screenshots, logs, test-results)
 ```
 
 ---
@@ -72,18 +72,16 @@ To connect from Visual Studio Code on Windows:
 
 ## 5. macOS Host Prerequisites
 
-Verified baseline on the remote macOS host (`mini.local`):
+Provisioned Apple development and validation environment:
 
-| Component | Verified Version / Path |
+| Component | Requirement / Verification |
 |---|---|
-| **Operating System** | macOS Sequoia `15.6.1` (`Build 24G90`, `Darwin 24.6.0 x86_64`) |
-| **Xcode** | `Xcode 26.6` (`Build 17F113`) at `/Applications/Xcode.app/Contents/Developer` |
-| **Command Line Tools** | Xcode 26.6 (`xcode-select -p`) |
-| **.NET SDK** | `11.0.100` (`/usr/local/share/dotnet/dotnet`) |
-| **Workload Set** | `11.0.100.1` (`ios 26.5.10315/10.0.100`, `maccatalyst 26.5.10315/10.0.100`, `maui 10.0.20/10.0.100`) |
-| **iOS Simulator Runtime** | `iOS 26.5` (`26.5 - 23F77`, `com.apple.CoreSimulator.SimRuntime.iOS-26-5`) |
-| **Validation Simulator** | `iPhone Air` (`UDID: 34E134C7-25BB-4925-8A3A-65674A943E87`) |
-| **Node.js & Appium** | Node `v20.19.0`, `appium@3.9.0`, `xcuitest@12.22.8`, `mac2@4.6.1` |
+| **Operating System** | `macOS 27.2` |
+| **.NET SDK** | `11.0.100` (pinned in [`global.json`](../../global.json)) |
+| **Xcode & Command Line Tools** | Installed Apple Xcode toolchain (confirm exact version on the remote host via `xcodebuild -version` and `xcode-select -p`) |
+| **MAUI Workloads** | `ios`, `maccatalyst`, `maui` (confirm installed workload versions on the remote host via `dotnet workload list`) |
+| **iOS Simulator Runtime** | Available iOS Simulator device/runtime (inspect via `xcrun simctl list runtimes` and `xcrun simctl list devices available`) |
+| **Appium & Drivers** | Appium server with `xcuitest` (iOS) and `mac2` (Mac Catalyst) drivers |
 
 ---
 
@@ -117,14 +115,13 @@ In the VS Code Remote - SSH window, the **Google Antigravity** extension (`googl
 
 ## 8. Toolchain Versions and Pinning Policy
 
-The repository root pins the exact SDK and workload set in [`global.json`](../../global.json):
+The repository root pins the .NET SDK in [`global.json`](../../global.json):
 
 ```json
 {
   "sdk": {
-    "version": "11.0.100",
-    "workloadVersion": "11.0.100.1",
-    "rollForward": "disable"
+    "rollForward": "disable",
+    "version": "11.0.100"
   }
 }
 ```
@@ -292,8 +289,9 @@ All local screenshots, logs, and TRX files are stored under `artifacts/apple/sta
 
 ---
 
-## 16. GitHub Actions CI Integration
+## 16. GitHub Actions CI Integration (Helper Only)
 
-- **`.github/workflows/dotnet-macos.yml`**: Installs `.NET SDK 11.0.100` and MAUI workload set `11.0.100.1` on `xcode-27`, builds `Orbit.Engine`, `Orbit.Input`, `Orbit3D.Engine`, and `Orbit3D.Graphics.Silk` across `net11.0`, `net11.0-ios`, and `net11.0-maccatalyst`, and runs `Orbit.Engine.Tests` and `Orbit3D.Engine.Tests` with TRX artifact upload.
-- **`.github/workflows/dotnet-windows.yml`**: Builds all engine libraries and runs unit tests (`Orbit.Engine.Tests`, `Orbit3D.Engine.Tests`, `ArtifactDiscoveryTests`), then validates `SilkTriangleSample` across `Windows`, `Android`, `iOS` (including iOS Simulator provisioning and Appium/XCUITest UI tests), and `MacCatalyst`.
-- **`.github/workflows/silk-triangle-sample-build.yml`**: Builds and packages `SilkTriangleSample` artifacts for `Android` (`.apk`), `Windows` (`win-x64`), `MacCatalyst` (`.app.zip`), and `iOS` (packaging `SilkTriangleSample-iossimulator.app.zip` when physical-device Apple signing secrets are absent, or signed `.ipa` when configured).
+GitHub Actions workflows are supplementary helpers for builds, diagnostics, and packaging. They are **never** the authoritative validation mechanism for Apple targets and never replace building and executing apps and Appium UI tests directly in the remote macOS `27.2` VS Code Remote - SSH workspace:
+- **`.github/workflows/dotnet-macos.yml`**: Supplementary macOS library build and desktop unit-test workflow (`Orbit.Engine.Tests`, `Orbit3D.Engine.Tests`).
+- **`.github/workflows/dotnet-windows.yml`**: Supplementary multi-target build and test workflow.
+- **`.github/workflows/silk-triangle-sample-build.yml`**: Supplementary packaging workflow for `SilkTriangleSample` build artifacts.

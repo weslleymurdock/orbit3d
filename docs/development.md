@@ -1,29 +1,66 @@
 # Development Guide
 
 ## Structure
-- `engine/` — reusable engine projects.
-- `games/` — sample/game applications.
-- `assets/` — repository assets.
-- `scripts/` — development scripts.
-- `.github/skills/` — specialized agent guidance.
-- `docs/` — architecture and development rules.
+- `engine/` — reusable engine projects (`Orbit.Engine`, `Orbit.Input`, `Orbit3D.Engine`, `Orbit3D.Graphics.Silk`, and unit test projects).
+- `games/` — sample/game applications and UI automation projects.
+- `assets/` — repository assets (including `assets/Idle.fbx` for Stage 11 animation).
+- `scripts/` — release packaging and workload maintenance utilities.
+- `tools/` — build helpers (such as `tools/remote/apple/fix-appicon.py`).
+- `.github/skills/` and `.agents/skills/` — specialized agent guidance.
+- `docs/` — architecture, testing, roadmap, and development rules.
+
+## Authoritative Development and Validation Topology
+
+Orbit3D uses a split-workspace topology where each platform is built, executed, and validated directly on its native host:
+
+| Platform | Workspace & Implementation | Build & Execution | Appium UI Tests |
+|---|---|---|---|
+| **Windows** | Windows local VS Code | Windows local | Windows local (`windows`) |
+| **Android** | Windows local VS Code | Windows local (device/emulator) | Windows local (`uiautomator2`) |
+| **iOS** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`xcuitest`) |
+| **Mac Catalyst** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`mac2`) |
+
+### Windows and Android Workflow
+- Open the repository in the local Windows VS Code workspace.
+- Implement, build, execute on Windows and Android devices/emulators, run Appium UI tests, and inspect screenshots, logs, and diagnostics locally.
+- No remote macOS execution is required for Windows or Android targets.
+
+### Apple Workflow (iOS and Mac Catalyst)
+- Connect from Windows VS Code to the provisioned **macOS `27.2`** host using **Visual Studio Code Remote - SSH**.
+- Open the repository workspace directly on the remote macOS filesystem and run the agent inside that remote VS Code workspace.
+- Implement Apple-specific code, build with `.NET SDK 11.0.100` and the installed Apple toolchain (confirm exact Xcode/workload versions on the remote host as an environment prerequisite), run the iOS Simulator and Mac Catalyst apps, execute Appium UI tests (`xcuitest` / `mac2`), and inspect screenshots and logs directly on macOS.
+- Do **not** use Windows-to-macOS archive transfers, SCP staging, or remote SSH build-orchestration scripts as a substitute for VS Code Remote - SSH.
+
+### Cross-Platform Changes
+When a change spans both platform groups:
+1. Implement and validate Windows and Android in the local Windows workspace.
+2. Connect to the remote macOS `27.2` workspace via VS Code Remote - SSH and implement/validate iOS and Mac Catalyst there.
+3. Keep both workspaces synchronized via the normal Git workflow.
+4. Report real execution evidence separately per platform.
+
+## Toolchain and SDK Baseline
+- **.NET SDK**: `11.0.100` (pinned in [`global.json`](../global.json) with `rollForward: disable`).
+- **Windows**: Local Windows 10/11 workstation with .NET SDK `11.0.100` and MAUI Windows/Android workloads.
+- **macOS**: Remote **macOS `27.2`** host with `.NET SDK 11.0.100` and the Apple/MAUI toolchain (exact Xcode and workload-set versions are environment prerequisites to be confirmed on the remote host).
+- Do not arbitrarily modify `global.json`, [`Directory.Build.props`](../Directory.Build.props), target frameworks, or package/workload pins unless a concrete incompatibility is discovered and justified.
+
+## CI Policy (Helper Only)
+- GitHub Actions workflows (`.github/workflows/`) are optional supporting infrastructure for builds, diagnostics, packaging, and supplementary checks.
+- CI is **never** the authoritative validation mechanism for an implementation stage.
+- A passing CI run does not prove a platform works, and a failing CI run does not invalidate a locally/remotely validated implementation.
+- Never wait for CI or substitute CI status/artifacts for executing real applications on Windows, Android, iOS Simulator, or Mac Catalyst.
 
 ## Milestones
 Implement 3D in independent stages. Do not implement future-stage functionality early merely because an abstraction is obvious.
 
-For each stage: inspect current code, read relevant guidance, make the smallest coherent change, build, test and document limitations.
+For each stage: inspect current code, read relevant guidance, make the smallest coherent change, build, execute and test on real targets, and document limitations.
 
-## Stage 05 status
-The Silk backend contains real OpenGL resource and indexed-draw commands. An Android MAUI `SilkGraphicsSurface` now owns a `GLSurfaceView`/GLES 3 context, exposes context/resize/render lifecycle events and relies on GLSurfaceView for present. The Android backend and OBJ sample build after installing `maui-android`; the sample imports and renders the tetrahedron from `Resources/Raw/poly.obj`. Packaging emits duplicate-native-library warnings. `dotnet workload repair` could not repair a cached Android SDK MSI source, while the targeted workload install succeeded with an old iOS preview manifest cleanup warning. Runtime visual validation is pending because the current VS Code session has no MAUI startup project selected. iOS, Mac Catalyst and Windows handlers remain pending. Do not report Stage 05 complete or a platform runtime-supported until the imported model is visibly rendered and its lifecycle is validated.
-
-## Stage 07 Windows
-The sample targets `net11.0-windows10.0.19041.0` on Windows hosts and registers the native WGL surface through `UseSilkGraphics()`. From `games/3D/SilkTriangleSample/`, run `dotnet run -f net11.0-windows10.0.19041.0`. A supported OpenGL 3.3 driver is required. The WinUI handler overlays the view with an owned, non-activating WGL popup because WinUI's composition surface occludes native child windows; it tracks the MAUI bounds and DPI, passes pointer hit-testing through, and destroys GPU/context resources on unload or host-window close. The sample packages the Toyota GLB and same-basename PNG from `assets/`; the asset-specific missing-UV fallback is documented in `asset-pipeline.md`. Model/texture rendering, resize and host-window teardown were visually/runtime validated on Windows.
-
-## Stage 08 iOS
-The sample targets `net11.0-ios` (`ApplicationId`: `com.remotecodehub.silktrianglesample`) and uses `SilkGraphicsSurfaceHandler` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0) with CoreGraphics sidecar texture decoding in `SampleTextureLoader`. Apple development and validation use Visual Studio Code Remote - SSH from Windows 11 to the provisioned remote macOS host (`macOS 15.6.1`, `Xcode 26.6`, `.NET SDK 11.0.100`) running the `iPhone Air — iOS 26.5` Simulator (`UDID: 34E134C7-25BB-4925-8A3A-65674A943E87`) and automated Appium/XCUITest UI tests (`IosSampleAppTests`). Multiplatform release artifacts are also built in CI via `.github/workflows/silk-triangle-sample-build.yml`.
-
-## Stage 09 Mac Catalyst
-The sample targets `net11.0-maccatalyst` (`ApplicationId`: `com.remotecodehub.silktrianglesample`, `SupportedOSPlatformVersion`: `17.0` on the sample and `15.0` on `Orbit3D.Engine`) and registers `SilkGraphicsSurfaceHandler` (`SilkMacSurfaceView` + `CAOpenGLLayer` + CGL OpenGL 4.1 core profile) via `UseSilkGraphics()`. Build and run on macOS with `dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj -c Debug -f net11.0-maccatalyst` or `scripts/validate-maccatalyst.sh`. Sidecar PNG decoding shares the `IOS || MACCATALYST` CoreGraphics path in `SampleTextureLoader`. Validation evidence (rendered frame captures and diagnostic logs) is stored under `artifacts/apple/stage-09/`.
+## Historical Stage Notes
+- **Stage 05 (Android)**: Established the `GLSurfaceView`/GLES 3 backend in `Orbit3D.Graphics.Silk` and physical-device rendering.
+- **Stage 07 (Windows)**: Established the non-activating owned WGL OpenGL 3.3 popup surface (`UseSilkGraphics()`) to avoid WinUI composition occlusion, rendering `SilkTriangleSample` on `net11.0-windows10.0.19041.0`.
+- **Stage 08 (iOS)**: Established `SilkIosSurfaceView` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0) and CoreGraphics sidecar texture decoding in `SampleTextureLoader`.
+- **Stage 09 (Mac Catalyst)**: Established `SilkMacSurfaceView` (`CAOpenGLLayer` + CGL OpenGL 4.1 core profile) via `UseSilkGraphics()`. Build and run directly on macOS via `dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj -c Debug -f net11.0-maccatalyst`.
+- **Stage 10 (Cross-Platform Stabilization)**: Consolidated lifecycle, context recreation, CPU/GPU caching, and rendering consistency across Windows, Android, iOS, and Mac Catalyst.
 
 ## Public API
 Public engine APIs require XML documentation. Prefer stable Orbit concepts over third-party implementation details.

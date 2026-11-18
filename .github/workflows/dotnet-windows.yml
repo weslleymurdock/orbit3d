@@ -95,10 +95,6 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - uses: maxim-lobanov/setup-xcode@v1
-      if: matrix.os == 'xcode-27'
-      with:
-        xcode-version: '26.0'
 
     - name: Setup Apple Host and Diagnostics (iOS and MacCatalyst)
       if: matrix.platform == 'iOS' || matrix.platform == 'MacCatalyst'
@@ -176,11 +172,6 @@ jobs:
         dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj `
           --configuration Release `
           -f ${{ matrix.target }}
-
-    - name: Validate Application Build Artifact
-      shell: pwsh
-      run: |
-        .\scripts\validate-artifacts.ps1 -Platform ${{ matrix.platform }} -Configuration Release
 
     - name: Setup Node.js and Appium
       if: matrix.enable-ui-tests

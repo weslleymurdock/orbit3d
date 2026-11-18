@@ -4,11 +4,13 @@ This document is the implementation roadmap for Orbit3D. Each stage has a focuse
 
 ## Platform target/version policy
 
-Apple targets must use the versions pinned by the repository root `global.json` and `Directory.Build.props`. In particular, the Apple workload/runtime package versions must not be upgraded or substituted ad hoc during development or validation.
+Apple and non-Apple targets must use the versions pinned by the repository root [`global.json`](../global.json) and [`Directory.Build.props`](../Directory.Build.props). Do not arbitrarily upgrade or modify `global.json`, `Directory.Build.props`, target frameworks, or package/workload pins.
 
-The current pinned Apple workload/runtime release is `26.5.10318`. This release is the supported configuration for building the .NET 10 Apple targets from an x64 Windows development host through the repository's SSH-based macOS workflow with Xcode 26.6. Apple target validation must therefore use the repository-pinned versions from `global.json` and `Directory.Build.props`; if the host/toolchain cannot satisfy those pins, the validation is considered blocked rather than changing the repository pins locally to make the build pass.
-
-For Apple stages, the supported remote-development topology is Windows x64 -> SSH -> Apple x64 host. The Apple implementation must remain compatible with that topology and must not assume an Apple Silicon host unless a later stage explicitly changes the supported matrix. Any Apple workload, SDK or Xcode version used for implementation or validation must be consistent with the repository pins and documented platform matrix.
+- **.NET SDK Baseline**: `11.0.100` (pinned in `global.json` with `rollForward: disable`).
+- **Windows and Android**: Developed, built, executed, and validated (including Appium UI tests) directly in the local **Windows** VS Code workspace.
+- **iOS and Mac Catalyst**: Developed, built, executed, and validated (including Appium UI tests) directly on the provisioned **macOS `27.2`** host via **Visual Studio Code Remote - SSH** from Windows. Confirm exact Xcode and workload-set versions on the remote macOS host as environment prerequisites.
+- **No Remote Build Orchestration**: Do not transfer working trees via TAR/SCP or run standalone Windows-to-macOS SSH build scripts as a replacement for VS Code Remote - SSH.
+- **CI Policy**: GitHub Actions CI workflows are supplementary helpers only. CI status is never authoritative validation and is never a Stage Definition of Done requirement.
 
 ## Stage 01 — 3D foundation
 
@@ -162,8 +164,8 @@ Stage 08 completes the native iOS Silk graphics surface (`CAEAGLLayer` + `EAGLCo
 
 ### Current Implementation & Validation Status
 
-- **Implemented & Validated (`net11.0-ios` on `iPhone Air — iOS 26.5 Simulator`)**: Native `SilkIosSurfaceView` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0), color (`RGBA8`) + depth (`DepthComponent24`) renderbuffers attached to the layer FBO, `SilkGraphicsContext.DefaultFramebuffer` propagation in `SilkRenderer3D` and `SilkRenderDevice`, dimension-change guard on `RenderBufferStorage`, `UIKit` lifecycle hooks (`OnResignActivation`, `DidEnterBackground`, `WillEnterForeground`, `OnActivated`), CoreGraphics `UIImage`/`CGBitmapContext` sidecar PNG decoding in `SampleTextureLoader`, `GraphicSurfacePage` launch on iOS in `App.xaml.cs`, structured diagnostics contract (`Phase`, `Context`, `Device`, `Assets`, `Meshes`, `Texture`, `Items`, `DrawCalls`, `Triangles`, `FPS`, `Frames`, `Viewport`, `Yaw`, `Pitch`, `Dist`), 4-platform CI build workflow (`.github/workflows/silk-triangle-sample-build.yml`), artifact download/verification scripts (`scripts/download-build-artifacts.ps1`, `scripts/validate-artifacts.ps1`), and 7-test iOS UI automation suite (`IosSampleAppTests` + `IosGraphicSurfacePage`).
-- **Development & Validation Environment**: Windows 11 client running Visual Studio Code connected via Remote - SSH to the provisioned remote macOS host (`macOS 15.6.1`, `Xcode 26.6`, `.NET SDK 11.0.100`, MAUI workload `11.0.100.1`, Apple SDK `26.5.10315/10318`) with Antigravity executing directly in the remote macOS workspace and validating on the `iPhone Air — iOS 26.5` Simulator (`UDID: 34E134C7-25BB-4925-8A3A-65674A943E87`). BrowserStack is no longer a required Stage 08 dependency.
+- **Implemented & Validated (`net11.0-ios` on `iPhone Air — iOS 26.5 Simulator`)**: Native `SilkIosSurfaceView` (`CAEAGLLayer` + `EAGLContext` OpenGL ES 3.0), color (`RGBA8`) + depth (`DepthComponent24`) renderbuffers attached to the layer FBO, `SilkGraphicsContext.DefaultFramebuffer` propagation in `SilkRenderer3D` and `SilkRenderDevice`, dimension-change guard on `RenderBufferStorage`, `UIKit` lifecycle hooks (`OnResignActivation`, `DidEnterBackground`, `WillEnterForeground`, `OnActivated`), CoreGraphics `UIImage`/`CGBitmapContext` sidecar PNG decoding in `SampleTextureLoader`, `GraphicSurfacePage` launch on iOS in `App.xaml.cs`, structured diagnostics contract (`Phase`, `Context`, `Device`, `Assets`, `Meshes`, `Texture`, `Items`, `DrawCalls`, `Triangles`, `FPS`, `Frames`, `Viewport`, `Yaw`, `Pitch`, `Dist`), 4-platform CI build workflow (`.github/workflows/silk-triangle-sample-build.yml`), historical CI artifact helpers (subsequently retired), and 7-test iOS UI automation suite (`IosSampleAppTests` + `IosGraphicSurfacePage`).
+- **Historical Development & Validation Environment**: Windows 11 client running Visual Studio Code connected via Remote - SSH to the former `macOS 15.6.1` (`Xcode 26.6`, Apple SDK `26.5.10315/10318`) host with Antigravity executing directly in the remote macOS workspace and validating on the `iPhone Air — iOS 26.5` Simulator (`UDID: 34E134C7-25BB-4925-8A3A-65674A943E87`). BrowserStack is no longer a required Stage 08 dependency.
 
 ### DoD
 
@@ -233,23 +235,53 @@ Stage 10 consolidates the four MAUI graphics targets into a single supported run
 
 ## Stage 11 — 3D animation
 
-Stage 11 introduces runtime 3D animation after all four MAUI graphics backends have been implemented and stabilized. The first animation scope is imported skeletal/skinning animation from supported Assimp assets, while keeping animation data and evaluation backend-neutral. GPU skinning or another accelerated implementation is added only behind the existing renderer abstraction and validated across the completed platform matrix.
+Stage 11 introduces runtime 3D skeletal/skinning animation after all four MAUI graphics backends have been implemented and stabilized. Animation data and evaluation remain backend-neutral inside `Orbit3D.Engine`, while GPU skinning or another accelerated implementation is added behind the existing renderer abstraction and validated across Android, Windows, iOS, and Mac Catalyst.
+
+`SilkTriangleSample` remains the static rendering and graphics baseline; animation is validated through a dedicated second MAUI sample application and UI automation suite.
+
+### Mandatory animation asset
+
+- **Required Asset**: [`assets/Idle.fbx`](../assets/Idle.fbx) (existing Mixamo FBX model with embedded animated skeletal hierarchy, skeleton/bones, skinning/vertex-to-bone influence data, and animation clip).
+- Stage 11 implementation and validation **must** locate and use `assets/Idle.fbx` directly through the Orbit3D Assimp asset-import pipeline, preserving and exercising its embedded skeleton, skinning weights, and animation data.
+- **Prohibited**: Do not replace `assets/Idle.fbx` with another model, download a different Mixamo model, generate a synthetic skeleton/animation substitute, discard skinning/animation data to render it statically, or commit a redundant copy of the asset without a concrete technical requirement.
+- If the current FBX importer lacks support for any skeleton, skinning, or animation data in `assets/Idle.fbx`, Stage 11 must implement the required importer support and document any format limits accurately.
+
+### Dedicated animation sample and UI automation
+
+- **Sample Application**: `games/3D/AnimationSample/` (`ApplicationId`: `com.remotecodehub.animationsample`), a standalone runnable MAUI app using `Orbit3D.Engine` and `Orbit3D.Graphics.Silk` that loads `assets/Idle.fbx`, exposes stable accessibility identifiers, and demonstrates skeleton/bone hierarchy, skinning weights, clip discovery/selection, playback, pause/resume, looping, time progression, observable animation/rendering diagnostics, and GPU resource recreation on context loss across Android, Windows, iOS, and Mac Catalyst.
+- **UI Automation Project**: `games/3D/AnimationSample.UITests/`, a dedicated Appium UI test project (structurally parallel to `SilkTriangleSample.UITests/`) supporting Android (`uiautomator2`), Windows (`windows`), iOS Simulator (`xcuitest`), and Mac Catalyst (`mac2`). Tests must assert real animation behavior on `assets/Idle.fbx` using observable state and diagnostics (launch, surface initialization, `Idle.fbx` load, skeleton/skinning/clip availability, time progression, pause/resume, looping, diagnostics pose/time metrics, continued rendering, context recreation recovery, and zero unhandled exceptions or invalid GPU resource usage).
+- **Solution Integration**: Integrate `AnimationSample/AnimationSample.csproj` and `AnimationSample.UITests/AnimationSample.UITests.csproj` into `games/3D/Orbit3D.Games.slnx`, keeping `SilkTriangleSample` and `SilkTriangleSample.UITests` independent.
 
 ### DoD
 
+- [ ] Inspect and use the existing `assets/Idle.fbx` Mixamo model.
+- [ ] Preserve and validate its embedded skeleton, skinning, and animation data.
+- [ ] Ensure the FBX importer supports all data required by `assets/Idle.fbx`.
 - [ ] Define backend-neutral animation/skeleton runtime data.
-- [ ] Extend the Assimp conversion boundary for supported skeletal animation data.
-- [ ] Import bones, inverse bind transforms, weights and animation clips.
+- [ ] Extend the Assimp conversion boundary for supported skeletal animation data (bones, inverse bind transforms, weights, and animation clips).
 - [ ] Preserve animation data in CPU-owned assets for context recreation.
-- [ ] Add runtime animation evaluation independent of the graphics backend.
-- [ ] Add animated pose updates without per-frame Assimp traversal.
-- [ ] Define the renderer contract required for accelerated skinning.
-- [ ] Implement the selected Silk GPU skinning path.
-- [ ] Validate animated meshes with a real imported asset.
-- [ ] Validate animation playback, looping and time progression.
-- [ ] Validate context/device recreation for animated assets.
-- [ ] Validate animation rendering on Android and Windows, then iOS and Mac Catalyst.
-- [ ] Add backend-independent animation tests.
-- [ ] Add platform rendering/regression tests where practical.
-- [ ] Document supported animation formats, limits and runtime behavior.
+- [ ] Add runtime animation evaluation independent of the graphics backend without per-frame Assimp traversal.
+- [ ] Define the renderer contract required for accelerated skinning and implement the selected Silk GPU skinning path.
+- [ ] Create the dedicated `AnimationSample` MAUI application (`games/3D/AnimationSample/`).
+- [ ] Set its application ID to `com.remotecodehub.animationsample`.
+- [ ] Load and render `assets/Idle.fbx` through the Orbit3D asset pipeline.
+- [ ] Demonstrate the model's imported skeleton and bone hierarchy.
+- [ ] Demonstrate imported skin weights and vertex influences.
+- [ ] Demonstrate playback of the animation contained in `assets/Idle.fbx`.
+- [ ] Demonstrate pause/resume, looping, and time progression.
+- [ ] Create the dedicated `AnimationSample.UITests` Appium project (`games/3D/AnimationSample.UITests/`).
+- [ ] Integrate both projects into `games/3D/Orbit3D.Games.slnx`.
+- [ ] Expose stable accessibility identifiers and runtime animation diagnostics.
+- [ ] Implement meaningful Appium animation tests for Android (`uiautomator2`).
+- [ ] Implement meaningful Appium animation tests for Windows (`windows`).
+- [ ] Implement meaningful Appium animation tests for iOS (`xcuitest`).
+- [ ] Implement meaningful Appium animation tests for Mac Catalyst (`mac2`).
+- [ ] Validate animation and rendering through actual application execution on all four platforms (Android/Windows locally on Windows; iOS/Mac Catalyst on macOS `27.2` via VS Code Remote - SSH).
+- [ ] Validate graphics-context/device recreation while animation is active.
+- [ ] Add backend-independent animation unit tests.
+- [ ] Preserve the independent static rendering regression coverage provided by `SilkTriangleSample.UITests`.
+- [ ] Document animation asset requirements, supported formats, limitations, and test procedures.
 - [ ] Keep editor, ECS rewrite, advanced PBR, advanced shadows and post-processing outside this stage unless separately scoped.
+
+> [!IMPORTANT]
+> Do not mark Stage 11 complete merely because animation engine unit tests pass; both the engine functionality and the dedicated `AnimationSample` + `AnimationSample.UITests` must be validated on all four platforms.

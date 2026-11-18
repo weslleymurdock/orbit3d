@@ -17,11 +17,16 @@ This document is the authoritative guide for the UI testing infrastructure of `S
   - iOS Simulator: `xcuitest` driver
   - Android: `uiautomator2` driver
   - Mac Catalyst: `mac2` driver
-- **CI Hosts:**
-  - Windows: `windows-latest`
-  - Android: `ubuntu-latest`
-  - iOS & Mac Catalyst: `xcode-27`
-- **Artifact Validation Before Automation:** `scripts/validate-artifacts.ps1` validates genuine build artifacts on disk before any UI test or Appium session attempts to interact with the application.
+- **Authoritative Development & Test Execution Topology:**
+
+| Platform | Implementation | Build and Execution | Appium UI Tests |
+|---|---|---|---|
+| **Android** | Windows local VS Code | Windows local (device/emulator) | Windows local (`uiautomator2`) |
+| **Windows** | Windows local VS Code | Windows local | Windows local (`windows`) |
+| **iOS** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`xcuitest`) |
+| **Mac Catalyst** | Windows VS Code via Remote - SSH | Remote macOS `27.2` workspace | Remote macOS `27.2` workspace (`mac2`) |
+
+- **Real Local/Remote Builds:** Appium tests must execute against genuine application builds produced directly in the corresponding development workspace (not downloaded CI artifacts).
 
 It ensures that:
 - The real MAUI application builds, installs, and launches on native targets and simulators.
@@ -95,12 +100,9 @@ Each platform implements the Page Object pattern (`BasePage`), isolating UI auto
 ## 4. Required .NET SDK and Workload Configuration
 
 The repository pins the following toolchain baseline:
-- **.NET SDK:** `11.0.100` (pinned in `global.json`, roll-forward `disable`).
-- **Workload Version:** `11.0.100.1` (pinned in `global.json`).
-- **Apple SDK Package Release:** `26.5.10318` (pinned in `Directory.Build.props`; installed workload pack `26.5.10315/10.0.100`).
-- **Android SDK Package Version:** `35.0.0` (pinned in `Directory.Build.props`).
-- **Windows Desktop App Package Version:** `10.0.26100.0` (pinned in `Directory.Build.props`).
-- **Sample MAUI Version:** `10.0.110` (overridden in `SilkTriangleSample.csproj`).
+- **.NET SDK:** `11.0.100` (pinned in [`global.json`](../../global.json), `rollForward: disable`).
+- **MAUI Version:** `10.0.0` in [`Directory.Build.props`](../../Directory.Build.props) (`SilkTriangleSample.csproj` sets `10.0.110`).
+- **macOS Host:** `macOS 27.2` with `.NET SDK 11.0.100` and the Apple/MAUI toolchain (confirm exact Xcode and workload versions on the remote host).
 
 Workloads required per platform:
 - Windows: `maui-windows`
@@ -112,11 +114,8 @@ Workloads required per platform:
 
 ## 5. Apple SDK and Xcode Compatibility Policy
 
-As defined in `docs/testing/apple-simulator-ui-testing.md`:
-- Apple workload and runtime packages adhere strictly to `26.5.10318` pinned in `Directory.Build.props` (`ValidateXcodeVersion=false` and `_ValidateXcodeVersion=false` allow newer minor Xcode point releases such as Xcode 26.6 to compile against the 26.5 workload pack).
-- Development and Stage 08 Apple validation use **Visual Studio Code Remote - SSH** from Windows 11 to the provisioned remote macOS host (`macOS 15.6.1`, `Xcode 26.6`) targeting the **iPhone Air — iOS 26.5 Simulator** (`com.apple.CoreSimulator.SimRuntime.iOS-26-5`).
-- Hosted macOS runners (`xcode-27`) with `xcode-version: '26.0'` are configured in CI.
-- CI runs `sudo xcodebuild -runFirstLaunch` and provisions the iOS simulator platform runtime (`sudo xcodebuild -downloadPlatform iOS`) before booting the available iPhone simulator (`iPhone Air` preferred).
+- [`Directory.Build.props`](../../Directory.Build.props) sets `ValidateXcodeVersion=false` and `_ValidateXcodeVersion=false` alongside `MauiVersion`.
+- All iOS and Mac Catalyst development, builds, execution, and Appium UI automation use **Visual Studio Code Remote - SSH** from Windows to the provisioned **macOS `27.2`** host.
 - Version pins in `global.json` and `Directory.Build.props` must not be altered arbitrarily.
 
 ---
@@ -138,10 +137,10 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
   - Retained in `AppiumDriverFactory` behind `ORBIT3D_USE_BROWSERSTACK=true`, `ORBIT3D_BROWSERSTACK_APP=bs://<app-id>`, `BROWSERSTACK_USERNAME`, and `BROWSERSTACK_ACCESS_KEY`, but no longer required for Stage 08 completion.
 
 ### 6.3 Mac Catalyst
-- **Prerequisites:** macOS host, Xcode, Accessibility permissions (for Appium `mac2`), active display power state (`caffeinate -u` when running over SSH so `CADisplayLink` and `CAOpenGLLayer` callbacks fire).
+- **Prerequisites:** Remote `macOS 27.2` host via VS Code Remote - SSH, Xcode, Accessibility permissions (for Appium `mac2`), active display power state (`caffeinate -u` when running over SSH so `CADisplayLink` and `CAOpenGLLayer` callbacks fire).
 - **Appium Driver:** `mac2` (`appium driver install mac2`).
-- **Artifact:** `SilkTriangleSample.app` bundle (`games/3D/SilkTriangleSample/bin/Debug/net11.0-maccatalyst/maccatalyst-x64/SilkTriangleSample.app`).
-- **Status & Policy:** Stage 09 implements the native Mac Catalyst Silk graphics surface (`SilkMacSurfaceView` + `CAOpenGLLayer` OpenGL 4.1 core profile) and launches `GraphicSurfacePage` on startup. `MacCatalystGraphicSurfacePage` and `MacCatalystSampleAppTests` validate surface visibility, context creation, asset loading, and frame rendering when an Appium `mac2` server with macOS TCC Accessibility permissions is available; direct runtime validation over Remote - SSH uses `scripts/validate-maccatalyst.sh` and `scripts/capture-maccatalyst-frame.sh`.
+- **Artifact:** `SilkTriangleSample.app` bundle (`games/3D/SilkTriangleSample/bin/<Config>/net11.0-maccatalyst/maccatalyst-x64/SilkTriangleSample.app`).
+- **Status & Policy:** Stage 09 implements the native Mac Catalyst Silk graphics surface (`SilkMacSurfaceView` + `CAOpenGLLayer` OpenGL 4.1 core profile) and launches `GraphicSurfacePage` on startup. `MacCatalystGraphicSurfacePage` and `MacCatalystSampleAppTests` validate surface visibility, context creation, asset loading, and frame rendering directly on macOS via Appium `mac2`.
 
 ### 6.4 Windows
 - **Prerequisites:** Windows 10/11 x64, Developer Mode enabled, Windows App SDK Runtime.
@@ -191,7 +190,7 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
 
 ## 8. Application Build and Artifact Contract
 
-- **Release Configuration:** All tests and artifact validation require `Release` builds.
+- **Real Workspace Builds:** Build the sample directly in the corresponding platform workspace (`Windows` local for Windows/Android; `macOS 27.2` Remote - SSH for iOS/Mac Catalyst).
 - **Application Build Command:**
   ```powershell
   dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f <TargetFramework>
@@ -200,53 +199,20 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
   ```powershell
   dotnet build games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj --configuration Release
   ```
-- **Deterministic Discovery:** `AppArtifactLocator` resolves the exact binary output from `artifacts/ci-builds/` (downloaded CI artifacts) or `games/3D/SilkTriangleSample/bin/Release/<TargetFramework>/...`.
-- **Stale Binary Prevention & IPA Inspection:**
-  - Validates that the artifact file, `.ipa` archive, or `.app` bundle exists.
-  - Verifies file size > 0 and calculates SHA256 content hash.
-  - For iOS `.ipa` files (`InspectIosIpaArchive`), verifies valid ZIP structure, `Payload/*.app/Info.plist`, `CFBundleIdentifier == com.remotecodehub.silktrianglesample`, non-empty Mach-O executable, and `embedded.mobileprovision`.
+- **Deterministic Discovery:** `AppArtifactLocator` resolves the exact binary output from `games/3D/SilkTriangleSample/bin/<Config>/<TargetFramework>/...`.
+- **Stale Binary Prevention:**
+  - Validates that the artifact file, `.ipa` archive, or `.app` bundle exists, has non-zero size, and matches the expected bundle ID (`com.remotecodehub.silktrianglesample`).
   - Throws `FileNotFoundException` or `InvalidDataException` with actionable instructions if missing, corrupted, or stale.
   - Pre-installed or manually placed applications are never accepted silently.
 
 ---
 
-## 9. Platform Packaging and Installation Validation
+## 9. Platform Installation and Execution Prerequisites
 
-Artifact validation is executed independently from UI tests via `scripts/validate-artifacts.ps1`:
-
-### 9.1 Windows
-```powershell
-.\scripts\validate-artifacts.ps1 -Platform Windows -Configuration Release
-```
-- Verifies `SilkTriangleSample.exe` and required assets (`toyota-gazoo-racing-wrt-gr-yaris-1-10.glb`, `toyota-gazoo-racing-wrt-gr-yaris-1-10.png`).
-- Stages the unpackaged layout into `artifacts/installation/Windows`.
-- **Strict Policy:** Does not launch the executable during the validation step.
-
-### 9.2 Android
-```powershell
-.\scripts\validate-artifacts.ps1 -Platform Android -Configuration Release
-```
-- Resolves `com.remotecodehub.silktrianglesample-Signed.apk`.
-- Installs via `adb install -r <apkPath>`.
-- Verifies package via `adb shell pm list packages com.remotecodehub.silktrianglesample`.
-
-### 9.3 iOS (Physical-Device `.ipa` or Simulator `.app`)
-```powershell
-# Validate downloaded CI physical-device .ipa archive (works on Windows and macOS):
-.\scripts\validate-artifacts.ps1 -Platform iOS -Configuration Release -ArtifactDirectory "artifacts/ci-builds/silk-triangle-sample-ios"
-
-# Or validate Simulator .app bundle on macOS:
-.\scripts\validate-artifacts.ps1 -Platform iOS -Configuration Release -SimulatorId "<UDID>"
-```
-- When an `.ipa` is present (or `-ArtifactDirectory` points to a downloaded CI artifact), inspects the ZIP archive structure, verifies `Payload/SilkTriangleSample.app/Info.plist`, confirms `CFBundleIdentifier` matches `com.remotecodehub.silktrianglesample`, verifies the Mach-O executable and `embedded.mobileprovision`, and calculates SHA-256.
-- When validating a `.app` simulator bundle on macOS: boots simulator (`xcrun simctl boot <UDID>`), installs app (`xcrun simctl install <UDID> <appPath>`), and confirms installation (`xcrun simctl get_app_container <UDID> com.remotecodehub.silktrianglesample`).
-
-### 9.4 Mac Catalyst
-```powershell
-.\scripts\validate-artifacts.ps1 -Platform MacCatalyst -Configuration Release
-```
-- Resolves `SilkTriangleSample.app` bundle and verifies `Contents/Info.plist`.
-- **Strict Policy:** Does not launch the executable during the validation step.
+- **Windows (local Windows workspace):** Build `net11.0-windows10.0.19041.0` and launch/test `win-x64/SilkTriangleSample.exe` via Appium `windows`.
+- **Android (local Windows workspace):** Build `net11.0-android`, verify device/emulator connectivity (`adb devices`), install/run via `adb` or Appium `uiautomator2`.
+- **iOS Simulator (remote macOS `27.2` workspace):** Build `net11.0-ios`, boot target simulator (`xcrun simctl boot <UDID>`), and run Appium `xcuitest` tests against `SilkTriangleSample.app`.
+- **Mac Catalyst (remote macOS `27.2` workspace):** Build `net11.0-maccatalyst` and run Appium `mac2` tests against `SilkTriangleSample.app`.
 
 ---
 
@@ -302,65 +268,13 @@ dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.cspro
 
 ---
 
-## 11. GitHub Actions CI Workflows
+## 11. GitHub Actions CI Workflows (Helper Only, Never Validation Authority)
 
-### 11.1 Dedicated Multiplatform Build Workflow (`.github/workflows/silk-triangle-sample-build.yml`)
-This workflow builds and publishes all four application targets (`Android`, `iOS`, `MacCatalyst`, `Windows`) in `Release` configuration (`fail-fast: false`) with 14-day artifact retention:
-- `silk-triangle-sample-android` (`net11.0-android`, `android-arm64` on `ubuntu-latest`)
-- `silk-triangle-sample-ios` (`net11.0-ios` on `xcode-27`: builds signed `ios-arm64` `.ipa` when `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_PROVISIONING_PROFILE_BASE64` secrets are configured, or builds and archives the `iossimulator-x64` `.app` bundle `SilkTriangleSample-iossimulator.app.zip` when physical-device signing secrets are absent)
-- `silk-triangle-sample-maccatalyst` (`net11.0-maccatalyst`, `maccatalyst-x64` `.app` on `xcode-27`)
-- `silk-triangle-sample-windows` (`net11.0-windows10.0.19041.0`, `win-x64` on `windows-latest`)
+GitHub Actions workflows are supplementary helpers for builds, diagnostics, and packaging. They are **never** the authoritative validation mechanism for any platform or milestone, and CI artifacts must not be downloaded to replace local or Remote - SSH application execution:
+- **`.github/workflows/silk-triangle-sample-build.yml`**: Supplementary multiplatform build/packaging workflow.
+- **`.github/workflows/dotnet-windows.yml`** / **`.github/workflows/dotnet-macos.yml`**: Supplementary build and automated test workflows.
 
-Download and verify artifacts locally on Windows using:
-```powershell
-.\scripts\download-build-artifacts.ps1 -RunId <run-id> -Platform all
-```
-
-### 11.2 CI Validation Matrix (`.github/workflows/dotnet-windows.yml`)
-Workflow `.github/workflows/dotnet-windows.yml` includes the `sample-3d-validation` matrix job:
-
-```yaml
-sample-3d-validation:
-  name: 3D Sample Validation (${{ matrix.platform }})
-  runs-on: ${{ matrix.os }}
-  strategy:
-    fail-fast: false
-    matrix:
-      include:
-        - platform: Windows
-          os: windows-latest
-          target: net11.0-windows10.0.19041.0
-          workloads: maui-windows
-          enable-ui-tests: true
-        - platform: Android
-          os: ubuntu-latest
-          target: net11.0-android
-          workloads: android
-          enable-ui-tests: false
-        - platform: iOS
-          os: xcode-27
-          target: net11.0-ios
-          workloads: ios
-          enable-ui-tests: true
-        - platform: MacCatalyst
-          os: xcode-27
-          target: net11.0-maccatalyst
-          workloads: maccatalyst
-          enable-ui-tests: false
-```
-
-- **Step Sequence:**
-  1. Checkout repository
-  2. Platform prerequisites (Java JDK for Android, Xcode 26.0 and first-launch/simulator setup for iOS/MacCatalyst)
-  3. Prepare iOS Simulator (deterministic query preferring `iPhone Air`, boot, and UDID export to `GITHUB_ENV`)
-  4. Setup .NET `11.0.100` with matrix workload (`dotnet workload install maui ${{ matrix.workloads }} --version 11.0.100.1`)
-  5. Build real sample application in Release (`dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj`)
-  6. Validate application build artifact (`validate-artifacts.ps1`)
-  7. Setup Node.js and Appium + Platform driver
-  8. Start Appium server with Windows-compatible process launch (`cmd.exe /c`) and poll status readiness check
-  9. Build UI test runner (`dotnet build games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj`)
-  10. Run UI tests with test discovery validation (`--filter "Platform=${{ matrix.platform }}"`)
-  11. Publish test results (.trx) and diagnostics artifacts (`if: always()`).
+Agents must never wait for CI or use CI results as a substitute for executing applications and UI tests on real Windows, Android, iOS Simulator, and Mac Catalyst targets.
 
 ---
 
@@ -387,6 +301,6 @@ sample-3d-validation:
 - **iOS Simulator UI Automation (`IosSampleAppTests` on `iPhone Air — iOS 26.5`):** 7 passed, 0 failed (`AppLaunchesWithoutCrashing`, `GraphicsSurfaceIsInitialized`, `SceneRendersMeshesAndTexturesWithPositiveMetrics`, `CameraOrbitInteractionUpdatesViewWithoutStoppingRenderLoop`, `OrientationChangeResizesSurfaceAndContinuesRendering`, `LifecycleBackgroundAndForegroundRecoversRendering`, `NoUnhandledExceptionsInDiagnostics`).
 
 ### 13.2 Platform Constraints
-- **Mac Catalyst:** `SilkGraphicsSurface` intentionally throws `PlatformNotSupportedException` until Stage 09 implements the native Mac Catalyst surface; `App.xaml.cs` falls back to `MainPage`.
-- **Android / Windows UI Tests on macOS Host:** Validated via GitHub Actions CI (`windows-latest` and `ubuntu-latest`).
+- **Mac Catalyst:** Requires macOS Accessibility permissions for Appium `mac2` and an active display power state (`caffeinate -u` over SSH) for `CADisplayLink`/`CAOpenGLLayer` frame callbacks.
+- **Android / Windows UI Tests:** Executed locally on the Windows workstation against a connected Android device/emulator and Windows desktop, never via CI substitution.
 

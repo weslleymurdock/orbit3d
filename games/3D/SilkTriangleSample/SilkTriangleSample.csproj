@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net10.0-android</TargetFrameworks>
-		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
-		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+		<TargetFrameworks>net11.0-android</TargetFrameworks>
+		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net11.0-ios;net11.0-maccatalyst</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net11.0-windows10.0.19041.0</TargetFrameworks>
 
 		<!-- Note for MacCatalyst:
 		The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
@@ -40,7 +40,7 @@
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and '$(Configuration)' == 'Debug'">
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net11.0-windows10.0.19041.0' and '$(Configuration)' == 'Debug'">
 		<DefineConstants>$(DefineConstants);MAUI_DEVFLOW</DefineConstants>
 	</PropertyGroup>
 
@@ -66,7 +66,7 @@
 
 	<Target Name="_FixMissingAppIconAssets"
 	        BeforeTargets="_CoreCompileImageAssets"
-	        Condition="'$(TargetFramework)' == 'net10.0-maccatalyst'">
+	        Condition="'$(TargetFramework)' == 'net11.0-maccatalyst'">
 		<PropertyGroup>
 			<_FixScript>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '..', '..', '..', 'tools', 'remote', 'apple', 'fix-appicon.py'))</_FixScript>
 		</PropertyGroup>
@@ -76,7 +76,7 @@
 
 	<Target Name="_BypassActoolForIosSimulator"
 	        BeforeTargets="_CoreCompileImageAssets"
-	        Condition="'$(TargetFramework)' == 'net10.0-ios'">
+	        Condition="'$(TargetFramework)' == 'net11.0-ios'">
 		<PropertyGroup>
 			<_PartialPlist>$(IntermediateOutputPath)actool\partial-info.plist</_PartialPlist>
 		</PropertyGroup>
@@ -102,7 +102,7 @@
 	  <ProjectReference Include="..\..\..\engine\Orbit3D.Graphics.Silk\Orbit3D.Graphics.Silk.csproj" />
 	</ItemGroup>
 
-	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0' and '$(Configuration)' == 'Debug'">
+	<ItemGroup Condition="'$(TargetFramework)' == 'net11.0-windows10.0.19041.0' and '$(Configuration)' == 'Debug'">
 		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Version="0.1.0-preview.12.26421.1" />
 	</ItemGroup>
 

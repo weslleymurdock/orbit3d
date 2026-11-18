@@ -20,7 +20,7 @@ Write-Host "==========================================" -ForegroundColor Cyan
 
 switch ($Platform) {
     "Windows" {
-        $targetTfm = "net10.0-windows10.0.19041.0"
+        $targetTfm = "net11.0-windows10.0.19041.0"
         $tfmDir = Join-Path $binDir $targetTfm
         $exeCandidates = @(
             (Join-Path $tfmDir "win-x64\SilkTriangleSample.exe"),
@@ -79,7 +79,7 @@ switch ($Platform) {
     }
 
     "Android" {
-        $targetTfm = "net10.0-android"
+        $targetTfm = "net11.0-android"
         $tfmDir = Join-Path $binDir $targetTfm
         $apkCandidates = @(
             (Join-Path $tfmDir "$appId-Signed.apk"),
@@ -136,7 +136,7 @@ switch ($Platform) {
     }
 
     "iOS" {
-        $targetTfm = "net10.0-ios"
+        $targetTfm = "net11.0-ios"
         $tfmDir = Join-Path $binDir $targetTfm
         $ciIpaDir = Join-Path $rootDir "artifacts\ci-builds\silk-triangle-sample-ios"
 
@@ -215,7 +215,7 @@ switch ($Platform) {
     }
 
     "MacCatalyst" {
-        $targetTfm = "net10.0-maccatalyst"
+        $targetTfm = "net11.0-maccatalyst"
         $tfmDir = Join-Path $binDir $targetTfm
         $appCandidates = @(
             (Join-Path $tfmDir "maccatalyst-x64\SilkTriangleSample.app"),

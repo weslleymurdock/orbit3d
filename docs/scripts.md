@@ -28,9 +28,9 @@ Use an ANSI-capable terminal for the colored progress display.
 
 Required: macOS compatible with the installed .NET 10/Xcode toolchain, .NET 10 SDK, .NET MAUI workload, Xcode command-line tools, iOS Simulator for iOS validation, screencapture for Mac Catalyst, and SSH server.
 
-.NET MAUI supports running an iOS app from macOS with dotnet build -t:Run -f net10.0-ios and selecting a Simulator using _DeviceName.
+.NET MAUI supports running an iOS app from macOS with dotnet build -t:Run -f net11.0-ios and selecting a Simulator using _DeviceName.
 
-Mac Catalyst supports dotnet build -t:Run -f net10.0-maccatalyst.
+Mac Catalyst supports dotnet build -t:Run -f net11.0-maccatalyst.
 
 ## SSH setup
 
@@ -78,7 +78,7 @@ Sequence:
 5. Connect through SSH.
 6. Upload with SCP.
 7. Extract under /tmp/orbit3d-validation/<run-id>.
-8. Build and launch net10.0-ios.
+8. Build and launch net11.0-ios.
 9. Wait for the rendered scene.
 10. Capture a Simulator screenshot.
 11. Collect diagnostics.
@@ -103,7 +103,7 @@ Run:
 
     .\tools\remote\apple\validate-apple.ps1 -Platform maccatalyst
 
-The Mac executes dotnet build -t:Run -f net10.0-maccatalyst and captures the desktop using screencapture. The initial implementation intentionally captures the desktop rather than introducing an additional native window-capture component.
+The Mac executes dotnet build -t:Run -f net11.0-maccatalyst and captures the desktop using screencapture. The initial implementation intentionally captures the desktop rather than introducing an additional native window-capture component.
 
 ## Fast iteration
 
@@ -209,7 +209,7 @@ iOS:
 
 Mac Catalyst:
 
-    dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj -c Debug -f net10.0-maccatalyst -t:Run
+    dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj -c Debug -f net11.0-maccatalyst -t:Run
 
 ## Current limitations
 

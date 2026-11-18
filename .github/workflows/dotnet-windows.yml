@@ -34,17 +34,17 @@ jobs:
     - name: Restore dependencies - Orbit3D.Engine.Tests
       run: dotnet restore engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj
     - name: Build Orbit.Engine
-      run: dotnet build engine/Orbit.Engine/Orbit.Engine.csproj --no-restore -c Release -f net10.0 -f net10.0-android -f net10.0-ios -f net10.0-maccatalyst -f net10.0-windows10.0.19041.0
+      run: dotnet build engine/Orbit.Engine/Orbit.Engine.csproj --no-restore -c Release -f net11.0 -f net11.0-android -f net11.0-ios -f net11.0-maccatalyst -f net11.0-windows10.0.19041.0
     - name: Build Orbit.Input
-      run: dotnet build engine/Orbit.Input/Orbit.Input.csproj --no-restore -c Release -f net10.0 -f net10.0-android -f net10.0-ios -f net10.0-maccatalyst -f net10.0-windows10.0.19041.0
+      run: dotnet build engine/Orbit.Input/Orbit.Input.csproj --no-restore -c Release -f net11.0 -f net11.0-android -f net11.0-ios -f net11.0-maccatalyst -f net11.0-windows10.0.19041.0
     - name: Build Orbit3D.Engine
-      run: dotnet build engine/Orbit3D.Engine/Orbit3D.Engine.csproj --no-restore -c Release -f net10.0 -f net10.0-android -f net10.0-ios -f net10.0-maccatalyst -f net10.0-windows10.0.19041.0
+      run: dotnet build engine/Orbit3D.Engine/Orbit3D.Engine.csproj --no-restore -c Release -f net11.0 -f net11.0-android -f net11.0-ios -f net11.0-maccatalyst -f net11.0-windows10.0.19041.0
     - name: Build Orbit3D.Graphics.Silk
-      run: dotnet build engine/Orbit3D.Graphics.Silk/Orbit3D.Graphics.Silk.csproj --no-restore -c Release -f net10.0 -f net10.0-android -f net10.0-ios -f net10.0-maccatalyst -f net10.0-windows10.0.19041.0
-    - name: Run Orbit.Engine.Tests (net10.0)
-      run: dotnet test engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj -c Release -f net10.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit.Engine.Tests-windows.trx"
-    - name: Run Orbit3D.Engine.Tests (net10.0)
-      run: dotnet test engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj -c Release -f net10.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit3D.Engine.Tests-windows.trx"
+      run: dotnet build engine/Orbit3D.Graphics.Silk/Orbit3D.Graphics.Silk.csproj --no-restore -c Release -f net11.0 -f net11.0-android -f net11.0-ios -f net11.0-maccatalyst -f net11.0-windows10.0.19041.0
+    - name: Run Orbit.Engine.Tests (net11.0)
+      run: dotnet test engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj -c Release -f net11.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit.Engine.Tests-windows.trx"
+    - name: Run Orbit3D.Engine.Tests (net11.0)
+      run: dotnet test engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj -c Release -f net11.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit3D.Engine.Tests-windows.trx"
     - name: Run Artifact Discovery Unit Tests
       run: dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj -c Release --filter "Category=Artifact" --results-directory artifacts/test-results --logger "trx;LogFileName=ArtifactDiscoveryTests-windows.trx"
     - name: Upload Unit Test Results
@@ -63,22 +63,22 @@ jobs:
         include:
           - platform: Windows
             os: windows-latest
-            target: net10.0-windows10.0.19041.0
+            target: net11.0-windows10.0.19041.0
             workloads: maui-windows
             enable-ui-tests: true
           - platform: Android
             os: ubuntu-latest
-            target: net10.0-android
+            target: net11.0-android
             workloads: android
             enable-ui-tests: false
           - platform: iOS
             os: macos-26
-            target: net10.0-ios
+            target: net11.0-ios
             workloads: ios
             enable-ui-tests: true
           - platform: MacCatalyst
             os: macos-26
-            target: net10.0-maccatalyst
+            target: net11.0-maccatalyst
             workloads: maccatalyst
             enable-ui-tests: false
 

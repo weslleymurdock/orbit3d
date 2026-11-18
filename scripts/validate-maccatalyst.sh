@@ -7,8 +7,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUN="${1:-run}"
 SECONDS_TO_RUN="${2:-8}"
 OUT="$ROOT/artifacts/apple/stage-09"
-APP="$ROOT/games/3D/SilkTriangleSample/bin/Debug/net10.0-maccatalyst/maccatalyst-x64/SilkTriangleSample.app"
-[ -d "$APP" ] || APP="$ROOT/games/3D/SilkTriangleSample/bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/SilkTriangleSample.app"
+APP="$ROOT/games/3D/SilkTriangleSample/bin/Debug/net11.0-maccatalyst/maccatalyst-x64/SilkTriangleSample.app"
+[ -d "$APP" ] || APP="$ROOT/games/3D/SilkTriangleSample/bin/Debug/net11.0-maccatalyst/maccatalyst-arm64/SilkTriangleSample.app"
 
 mkdir -p "$OUT/logs" "$OUT/screenshots"
 pkill -f SilkTriangleSample.app/Contents/MacOS || true

@@ -37,17 +37,17 @@ jobs:
     - name: Restore dependencies - Orbit3D.Engine.Tests
       run: dotnet restore engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj
     - name: Build Orbit.Engine
-      run: dotnet build engine/Orbit.Engine/Orbit.Engine.csproj --no-restore -c Release -f net10.0 -f net10.0-ios -f net10.0-maccatalyst
+      run: dotnet build engine/Orbit.Engine/Orbit.Engine.csproj --no-restore -c Release -f net11.0 -f net11.0-ios -f net11.0-maccatalyst
     - name: Build Orbit.Input
-      run: dotnet build engine/Orbit.Input/Orbit.Input.csproj --no-restore -c Release -f net10.0 -f net10.0-ios -f net10.0-maccatalyst
+      run: dotnet build engine/Orbit.Input/Orbit.Input.csproj --no-restore -c Release -f net11.0 -f net11.0-ios -f net11.0-maccatalyst
     - name: Build Orbit3D.Engine
-      run: dotnet build engine/Orbit3D.Engine/Orbit3D.Engine.csproj --no-restore -c Release -f net10.0 -f net10.0-ios -f net10.0-maccatalyst
+      run: dotnet build engine/Orbit3D.Engine/Orbit3D.Engine.csproj --no-restore -c Release -f net11.0 -f net11.0-ios -f net11.0-maccatalyst
     - name: Build Orbit3D.Graphics.Silk
-      run: dotnet build engine/Orbit3D.Graphics.Silk/Orbit3D.Graphics.Silk.csproj --no-restore -c Release -f net10.0 -f net10.0-ios -f net10.0-maccatalyst
-    - name: Run Orbit.Engine.Tests (net10.0)
-      run: dotnet test engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj -c Release -f net10.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit.Engine.Tests-macos.trx"
-    - name: Run Orbit3D.Engine.Tests (net10.0)
-      run: dotnet test engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj -c Release -f net10.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit3D.Engine.Tests-macos.trx"
+      run: dotnet build engine/Orbit3D.Graphics.Silk/Orbit3D.Graphics.Silk.csproj --no-restore -c Release -f net11.0 -f net11.0-ios -f net11.0-maccatalyst
+    - name: Run Orbit.Engine.Tests (net11.0)
+      run: dotnet test engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj -c Release -f net11.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit.Engine.Tests-macos.trx"
+    - name: Run Orbit3D.Engine.Tests (net11.0)
+      run: dotnet test engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj -c Release -f net11.0 --results-directory artifacts/test-results --logger "trx;LogFileName=Orbit3D.Engine.Tests-macos.trx"
     - name: Upload Unit Test Results
       if: always()
       uses: actions/upload-artifact@v4

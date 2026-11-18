@@ -24,7 +24,7 @@ public sealed class ArtifactDiscoveryTests
             Assert.NotNull(manifest);
             Assert.Equal(PlatformKind.Windows, manifest.Platform);
             Assert.Equal("Release", manifest.Configuration);
-            Assert.Equal("net10.0-windows10.0.19041.0", manifest.TargetFramework);
+            Assert.Equal("net11.0-windows10.0.19041.0", manifest.TargetFramework);
             Assert.Equal("com.remotecodehub.silktrianglesample", manifest.ApplicationId);
             Assert.True(File.Exists(manifest.ArtifactPath), $"Executable should exist at '{manifest.ArtifactPath}'.");
             Assert.EndsWith("SilkTriangleSample.exe", manifest.ArtifactPath, StringComparison.OrdinalIgnoreCase);
@@ -165,8 +165,8 @@ public sealed class ArtifactDiscoveryTests
         var manifest = new AppArtifactManifest(
             Platform: PlatformKind.Android,
             Configuration: "Release",
-            TargetFramework: "net10.0-android",
-            ArtifactPath: "bin/Release/net10.0-android/com.remotecodehub.silktrianglesample-Signed.apk",
+            TargetFramework: "net11.0-android",
+            ArtifactPath: "bin/Release/net11.0-android/com.remotecodehub.silktrianglesample-Signed.apk",
             ArtifactType: ".apk",
             FileSizeBytes: 10240,
             ContentHash: "AABBCCDDEEFF",

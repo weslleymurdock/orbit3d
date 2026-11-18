@@ -60,7 +60,7 @@ public static class AppArtifactLocator
         switch (platform)
         {
             case PlatformKind.Android:
-                targetFramework = "net10.0-android";
+                targetFramework = "net11.0-android";
                 expectedType = ".apk";
                 resolvedPath = customPath
                     ?? TestConfiguration.ArtifactPathOverride
@@ -69,7 +69,7 @@ public static class AppArtifactLocator
                 break;
 
             case PlatformKind.Windows:
-                targetFramework = "net10.0-windows10.0.19041.0";
+                targetFramework = "net11.0-windows10.0.19041.0";
                 expectedType = ".exe";
                 resolvedPath = customPath
                     ?? TestConfiguration.ArtifactPathOverride
@@ -78,7 +78,7 @@ public static class AppArtifactLocator
                 break;
 
             case PlatformKind.iOS:
-                targetFramework = "net10.0-ios";
+                targetFramework = "net11.0-ios";
                 var effectiveCustom = customPath ?? TestConfiguration.IosArtifactPath ?? TestConfiguration.ArtifactPathOverride;
                 resolvedPath = effectiveCustom ?? FindIosArtifact(Path.Combine(binDir, targetFramework), rootDir, requireIosIpa);
                 if (requireIosIpa || resolvedPath.EndsWith(".ipa", StringComparison.OrdinalIgnoreCase))
@@ -96,7 +96,7 @@ public static class AppArtifactLocator
                 break;
 
             case PlatformKind.MacCatalyst:
-                targetFramework = "net10.0-maccatalyst";
+                targetFramework = "net11.0-maccatalyst";
                 var macCandidate = customPath ?? TestConfiguration.ArtifactPathOverride ?? FindMacCatalystArtifact(Path.Combine(binDir, targetFramework), rootDir);
                 expectedType = macCandidate.EndsWith(".pkg", StringComparison.OrdinalIgnoreCase)
                     ? ".pkg"

@@ -1,7 +1,7 @@
 ---
 name: maui-current-apis
 description: >-
-  Keep MAUI guidance target-framework-safe. USE FOR: checking TFM, net8 vs net10 API choices, `SafeAreaEdges`, replacing `Application.Current.MainPage`, Xamarin.Forms namespaces, Shell/window APIs, avoiding .NET 10-only APIs on older targets. DO NOT USE FOR: workload discovery, runtime inspection, migration planning.
+  Keep MAUI guidance target-framework-safe. USE FOR: checking TFM, net11 vs net11 API choices, `SafeAreaEdges`, replacing `Application.Current.MainPage`, Xamarin.Forms namespaces, Shell/window APIs, avoiding .NET 10-only APIs on older targets. DO NOT USE FOR: workload discovery, runtime inspection, migration planning.
 ---
 
 # MAUI Current APIs
@@ -21,7 +21,7 @@ instead of generating stale Xamarin.Forms or early MAUI patterns.
    ```
 
 2. Identify whether the project targets .NET 8, .NET 9, .NET 10, or multiple
-   versions. Do not assume `net10.0`.
+   versions. Do not assume `net11.0`.
 3. Prefer APIs from `Microsoft.Maui.*` namespaces. Do not add `Xamarin.Forms` or
    `Xamarin.Essentials` namespaces to MAUI projects.
 4. If replacing an obsolete API, explain the replacement and why it matches the

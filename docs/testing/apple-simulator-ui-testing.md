@@ -170,18 +170,18 @@ xcrun simctl bootstatus 34E134C7-25BB-4925-8A3A-65674A943E87 -b
 
 ## 10. Building `SilkTriangleSample` for iOS Simulator
 
-Restore and build the `net10.0-ios` target in `Release` configuration:
+Restore and build the `net11.0-ios` target in `Release` configuration:
 
 ```bash
 dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj \
   -c Release \
-  -f net10.0-ios
+  -f net11.0-ios
 ```
 
 This produces the simulator application bundle at:
 
 ```text
-games/3D/SilkTriangleSample/bin/Release/net10.0-ios/iossimulator-x64/SilkTriangleSample.app
+games/3D/SilkTriangleSample/bin/Release/net11.0-ios/iossimulator-x64/SilkTriangleSample.app
 ```
 
 ---
@@ -192,7 +192,7 @@ Install the `.app` bundle onto the booted **iPhone Air** simulator and launch it
 
 ```bash
 xcrun simctl install 34E134C7-25BB-4925-8A3A-65674A943E87 \
-  games/3D/SilkTriangleSample/bin/Release/net10.0-ios/iossimulator-x64/SilkTriangleSample.app
+  games/3D/SilkTriangleSample/bin/Release/net11.0-ios/iossimulator-x64/SilkTriangleSample.app
 
 xcrun simctl launch 34E134C7-25BB-4925-8A3A-65674A943E87 \
   com.remotecodehub.silktrianglesample
@@ -243,12 +243,12 @@ Execute the unit test suites and output TRX reports to `artifacts/apple/stage-08
 
 ```bash
 dotnet test engine/Orbit3D.Engine.Tests/Orbit3D.Engine.Tests.csproj \
-  -c Release -f net10.0 \
+  -c Release -f net11.0 \
   --results-directory artifacts/apple/stage-08/test-results/unit-tests \
   --logger "trx;LogFileName=Orbit3D.Engine.Tests.trx"
 
 dotnet test engine/Orbit.Engine.Tests/Orbit.Engine.Tests.csproj \
-  -c Release -f net10.0 \
+  -c Release -f net11.0 \
   --results-directory artifacts/apple/stage-08/test-results/unit-tests \
   --logger "trx;LogFileName=Orbit.Engine.Tests.trx"
 
@@ -294,6 +294,6 @@ All local screenshots, logs, and TRX files are stored under `artifacts/apple/sta
 
 ## 16. GitHub Actions CI Integration
 
-- **`.github/workflows/dotnet-macos.yml`**: Installs `.NET SDK 10.0.302` and MAUI workload set `10.0.302.1` on `macos-26`, builds `Orbit.Engine`, `Orbit.Input`, `Orbit3D.Engine`, and `Orbit3D.Graphics.Silk` across `net10.0`, `net10.0-ios`, and `net10.0-maccatalyst`, and runs `Orbit.Engine.Tests` and `Orbit3D.Engine.Tests` with TRX artifact upload.
+- **`.github/workflows/dotnet-macos.yml`**: Installs `.NET SDK 10.0.302` and MAUI workload set `10.0.302.1` on `macos-26`, builds `Orbit.Engine`, `Orbit.Input`, `Orbit3D.Engine`, and `Orbit3D.Graphics.Silk` across `net11.0`, `net11.0-ios`, and `net11.0-maccatalyst`, and runs `Orbit.Engine.Tests` and `Orbit3D.Engine.Tests` with TRX artifact upload.
 - **`.github/workflows/dotnet-windows.yml`**: Builds all engine libraries and runs unit tests (`Orbit.Engine.Tests`, `Orbit3D.Engine.Tests`, `ArtifactDiscoveryTests`), then validates `SilkTriangleSample` across `Windows`, `Android`, `iOS` (including iOS Simulator provisioning and Appium/XCUITest UI tests), and `MacCatalyst`.
 - **`.github/workflows/silk-triangle-sample-build.yml`**: Builds and packages `SilkTriangleSample` artifacts for `Android` (`.apk`), `Windows` (`win-x64`), `MacCatalyst` (`.app.zip`), and `iOS` (packaging `SilkTriangleSample-iossimulator.app.zip` when physical-device Apple signing secrets are absent, or signed `.ipa` when configured).

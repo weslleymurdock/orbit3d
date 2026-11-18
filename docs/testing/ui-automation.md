@@ -9,8 +9,8 @@ This document is the authoritative guide for the UI testing infrastructure of `S
 `SilkTriangleSample.UITests` provides end-to-end UI automation and rendering verification for the Orbit3D MAUI 3D sample application across Android, iOS, Mac Catalyst, and Windows.
 
 ### Architectural Separation
-- **Application Target:** Platform-specific TFMs (`net10.0-windows10.0.19041.0`, `net10.0-android`, `net10.0-ios`, `net10.0-maccatalyst`). The real MAUI application builds independently.
-- **UI Test Runner:** Pure desktop `.NET 10` (`net10.0`) test project using xUnit v3 and Appium.WebDriver. The test runner is **never** multi-targeted as mobile or Apple application packages, eliminating app-host (`UseAppHost`) and missing bundle identifier (`CFBundleIdentifier`) failures.
+- **Application Target:** Platform-specific TFMs (`net11.0-windows10.0.19041.0`, `net11.0-android`, `net11.0-ios`, `net11.0-maccatalyst`). The real MAUI application builds independently.
+- **UI Test Runner:** Pure desktop `.NET 10` (`net11.0`) test project using xUnit v3 and Appium.WebDriver. The test runner is **never** multi-targeted as mobile or Apple application packages, eliminating app-host (`UseAppHost`) and missing bundle identifier (`CFBundleIdentifier`) failures.
 - **Automation Transport:** Appium server (HTTP JSONWP / W3C WebDriver protocol on `http://127.0.0.1:4723/`).
 - **Platform Drivers:**
   - Windows: `windows` driver
@@ -132,7 +132,7 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
 ### 6.2 iOS Simulator (Primary Stage 08 Validation) & Optional BrowserStack
 - **Primary Stage 08 Validation (VS Code Remote - SSH + macOS iPhone Air iOS 26.5 Simulator):**
   - **Prerequisites:** Remote macOS host accessed via VS Code Remote - SSH, Xcode 26.x, iOS 26.5 Simulator runtime (`iPhone Air`), Command Line Tools (`xcrun simctl`), Appium + `xcuitest` driver.
-  - **Artifact:** `SilkTriangleSample.app` (`games/3D/SilkTriangleSample/bin/Release/net10.0-ios/iossimulator-x64/SilkTriangleSample.app`).
+  - **Artifact:** `SilkTriangleSample.app` (`games/3D/SilkTriangleSample/bin/Release/net11.0-ios/iossimulator-x64/SilkTriangleSample.app`).
   - **Execution:** Boots `iPhone Air` (`34E134C7-25BB-4925-8A3A-65674A943E87`), exports `ORBIT3D_IOS_SIMULATOR_UDID`, `ORBIT3D_IOS_DEVICE="iPhone Air"`, `ORBIT3D_IOS_OS_VERSION="26.5"` (and optionally `ORBIT3D_IOS_WDA_URL="http://127.0.0.1:8100"` when `WebDriverAgentRunner` is pre-started), and executes `IosSampleAppTests`.
 - **Optional Cloud Device Validation (BrowserStack):**
   - Retained in `AppiumDriverFactory` behind `ORBIT3D_USE_BROWSERSTACK=true`, `ORBIT3D_BROWSERSTACK_APP=bs://<app-id>`, `BROWSERSTACK_USERNAME`, and `BROWSERSTACK_ACCESS_KEY`, but no longer required for Stage 08 completion.
@@ -140,7 +140,7 @@ As defined in `docs/testing/apple-simulator-ui-testing.md`:
 ### 6.3 Mac Catalyst
 - **Prerequisites:** macOS host, Xcode, Accessibility permissions (for Appium `mac2`), active display power state (`caffeinate -u` when running over SSH so `CADisplayLink` and `CAOpenGLLayer` callbacks fire).
 - **Appium Driver:** `mac2` (`appium driver install mac2`).
-- **Artifact:** `SilkTriangleSample.app` bundle (`games/3D/SilkTriangleSample/bin/Debug/net10.0-maccatalyst/maccatalyst-x64/SilkTriangleSample.app`).
+- **Artifact:** `SilkTriangleSample.app` bundle (`games/3D/SilkTriangleSample/bin/Debug/net11.0-maccatalyst/maccatalyst-x64/SilkTriangleSample.app`).
 - **Status & Policy:** Stage 09 implements the native Mac Catalyst Silk graphics surface (`SilkMacSurfaceView` + `CAOpenGLLayer` OpenGL 4.1 core profile) and launches `GraphicSurfacePage` on startup. `MacCatalystGraphicSurfacePage` and `MacCatalystSampleAppTests` validate surface visibility, context creation, asset loading, and frame rendering when an Appium `mac2` server with macOS TCC Accessibility permissions is available; direct runtime validation over Remote - SSH uses `scripts/validate-maccatalyst.sh` and `scripts/capture-maccatalyst-frame.sh`.
 
 ### 6.4 Windows
@@ -266,7 +266,7 @@ Requires running Appium server and target platform driver:
 **Windows:**
 ```powershell
 # 1. Build sample
-dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f net10.0-windows10.0.19041.0
+dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f net11.0-windows10.0.19041.0
 
 # 2. Build test runner
 dotnet build games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj --configuration Release
@@ -281,7 +281,7 @@ dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.cspro
 **Android:**
 ```powershell
 # 1. Build sample
-dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f net10.0-android
+dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f net11.0-android
 
 # 2. Run Android UI tests (when emulator is configured)
 dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj `
@@ -292,7 +292,7 @@ dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.cspro
 **iOS:**
 ```bash
 # 1. Build sample
-dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f net10.0-ios
+dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj --configuration Release -f net11.0-ios
 
 # 2. Run iOS UI tests
 dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.csproj \
@@ -306,10 +306,10 @@ dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.cspro
 
 ### 11.1 Dedicated Multiplatform Build Workflow (`.github/workflows/silk-triangle-sample-build.yml`)
 This workflow builds and publishes all four application targets (`Android`, `iOS`, `MacCatalyst`, `Windows`) in `Release` configuration (`fail-fast: false`) with 14-day artifact retention:
-- `silk-triangle-sample-android` (`net10.0-android`, `android-arm64` on `ubuntu-latest`)
-- `silk-triangle-sample-ios` (`net10.0-ios` on `macos-26`: builds signed `ios-arm64` `.ipa` when `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_PROVISIONING_PROFILE_BASE64` secrets are configured, or builds and archives the `iossimulator-x64` `.app` bundle `SilkTriangleSample-iossimulator.app.zip` when physical-device signing secrets are absent)
-- `silk-triangle-sample-maccatalyst` (`net10.0-maccatalyst`, `maccatalyst-x64` `.app` on `macos-26`)
-- `silk-triangle-sample-windows` (`net10.0-windows10.0.19041.0`, `win-x64` on `windows-latest`)
+- `silk-triangle-sample-android` (`net11.0-android`, `android-arm64` on `ubuntu-latest`)
+- `silk-triangle-sample-ios` (`net11.0-ios` on `macos-26`: builds signed `ios-arm64` `.ipa` when `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_PROVISIONING_PROFILE_BASE64` secrets are configured, or builds and archives the `iossimulator-x64` `.app` bundle `SilkTriangleSample-iossimulator.app.zip` when physical-device signing secrets are absent)
+- `silk-triangle-sample-maccatalyst` (`net11.0-maccatalyst`, `maccatalyst-x64` `.app` on `macos-26`)
+- `silk-triangle-sample-windows` (`net11.0-windows10.0.19041.0`, `win-x64` on `windows-latest`)
 
 Download and verify artifacts locally on Windows using:
 ```powershell
@@ -329,22 +329,22 @@ sample-3d-validation:
       include:
         - platform: Windows
           os: windows-latest
-          target: net10.0-windows10.0.19041.0
+          target: net11.0-windows10.0.19041.0
           workloads: maui-windows
           enable-ui-tests: true
         - platform: Android
           os: ubuntu-latest
-          target: net10.0-android
+          target: net11.0-android
           workloads: android
           enable-ui-tests: false
         - platform: iOS
           os: macos-26
-          target: net10.0-ios
+          target: net11.0-ios
           workloads: ios
           enable-ui-tests: true
         - platform: MacCatalyst
           os: macos-26
-          target: net10.0-maccatalyst
+          target: net11.0-maccatalyst
           workloads: maccatalyst
           enable-ui-tests: false
 ```
@@ -378,12 +378,12 @@ sample-3d-validation:
 ## 13. Validation Status and Limitations
 
 ### 13.1 Executed and Validated on Remote macOS Host via VS Code Remote - SSH
-- **Test Project Build:** `SilkTriangleSample.UITests.csproj` targets `net10.0` with xUnit v3 4.0.2 and Appium.WebDriver 9.0.0. Compiles cleanly with 0 warnings and 0 errors.
-- **Apple Sample Builds:** `SilkTriangleSample` builds in `Release` mode with 0 warnings and 0 errors for `net10.0-ios` (`iossimulator-x64`) and `net10.0-maccatalyst` (`maccatalyst-x64`).
+- **Test Project Build:** `SilkTriangleSample.UITests.csproj` targets `net11.0` with xUnit v3 4.0.2 and Appium.WebDriver 9.0.0. Compiles cleanly with 0 warnings and 0 errors.
+- **Apple Sample Builds:** `SilkTriangleSample` builds in `Release` mode with 0 warnings and 0 errors for `net11.0-ios` (`iossimulator-x64`) and `net11.0-maccatalyst` (`maccatalyst-x64`).
 - **Unit & Artifact Discovery Tests:**
-  - `Orbit3D.Engine.Tests`: 45 passed, 0 failed (`net10.0`).
-  - `Orbit.Engine.Tests`: 2 passed, 0 failed (`net10.0`).
-  - `ArtifactDiscoveryTests` (`Category=Artifact`): 9 passed, 0 failed (`net10.0`).
+  - `Orbit3D.Engine.Tests`: 45 passed, 0 failed (`net11.0`).
+  - `Orbit.Engine.Tests`: 2 passed, 0 failed (`net11.0`).
+  - `ArtifactDiscoveryTests` (`Category=Artifact`): 9 passed, 0 failed (`net11.0`).
 - **iOS Simulator UI Automation (`IosSampleAppTests` on `iPhone Air — iOS 26.5`):** 7 passed, 0 failed (`AppLaunchesWithoutCrashing`, `GraphicsSurfaceIsInitialized`, `SceneRendersMeshesAndTexturesWithPositiveMetrics`, `CameraOrbitInteractionUpdatesViewWithoutStoppingRenderLoop`, `OrientationChangeResizesSurfaceAndContinuesRendering`, `LifecycleBackgroundAndForegroundRecoversRendering`, `NoUnhandledExceptionsInDiagnostics`).
 
 ### 13.2 Platform Constraints

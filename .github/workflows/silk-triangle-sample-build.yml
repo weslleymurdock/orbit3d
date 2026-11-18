@@ -38,25 +38,25 @@ jobs:
         include:
           - platform: Android
             os: ubuntu-latest
-            tfm: net10.0-android
+            tfm: net11.0-android
             rid: android-arm64
             workloads: android
             artifact-name: silk-triangle-sample-android
           - platform: iOS
             os: macos-26
-            tfm: net10.0-ios
+            tfm: net11.0-ios
             rid: ios-arm64
             workloads: ios
             artifact-name: silk-triangle-sample-ios
           - platform: MacCatalyst
             os: macos-26
-            tfm: net10.0-maccatalyst
+            tfm: net11.0-maccatalyst
             rid: maccatalyst-x64
             workloads: maccatalyst
             artifact-name: silk-triangle-sample-maccatalyst
           - platform: Windows
             os: windows-latest
-            tfm: net10.0-windows10.0.19041.0
+            tfm: net11.0-windows10.0.19041.0
             rid: win-x64
             workloads: maui-windows
             artifact-name: silk-triangle-sample-windows

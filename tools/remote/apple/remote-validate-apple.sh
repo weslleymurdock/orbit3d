@@ -126,17 +126,17 @@ if [ "$PLATFORM" = "ios" ]; then
     kill "$BOOT_PID" 2>/dev/null || true
     xcrun simctl list devices | grep "$SIMULATOR_ID" > "$ARTIFACTS/simulator.txt" || true
 
-    progress 34 "Building net10.0-ios with -p:_ValidateXcodeVersion=false..."
+    progress 34 "Building net11.0-ios with -p:_ValidateXcodeVersion=false..."
     dotnet build "$PROJECT" \
         -c "$CONFIGURATION" \
-        -f net10.0-ios \
+        -f net11.0-ios \
         -p:_ValidateXcodeVersion=false \
         > "$BUILD_LOG" 2>&1
     BUILD_EXIT=$?
     cat "$BUILD_LOG"
     [ "$BUILD_EXIT" -eq 0 ] || fail "iOS build failed with exit code $BUILD_EXIT."
 
-    APP_BUNDLE="$(find "$ROOT/games/3D/SilkTriangleSample/bin/$CONFIGURATION/net10.0-ios" -type d -name '*.app' -path '*iossimulator*' -print -quit)"
+    APP_BUNDLE="$(find "$ROOT/games/3D/SilkTriangleSample/bin/$CONFIGURATION/net11.0-ios" -type d -name '*.app' -path '*iossimulator*' -print -quit)"
     [ -n "$APP_BUNDLE" ] || fail "The iOS Simulator app bundle was not found after building."
     APP_ID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_BUNDLE/Info.plist")"
     xcrun simctl terminate "$SIMULATOR_ID" "$APP_ID" >/dev/null 2>&1 || true
@@ -227,7 +227,7 @@ if [ "$PLATFORM" = "ios" ]; then
 
     xcrun simctl terminate "$SIMULATOR_ID" "$APP_ID" >/dev/null 2>&1 || true
 else
-    progress 34 "Building and running net10.0-maccatalyst with -p:_ValidateXcodeVersion=false..."
+    progress 34 "Building and running net11.0-maccatalyst with -p:_ValidateXcodeVersion=false..."
     CMD_FILE="$ARTIFACTS/maccatalyst-commands.txt"
     FRAMES_DIR="$ARTIFACTS/frames"
     mkdir -p "$FRAMES_DIR"
@@ -254,17 +254,17 @@ else
         fi
     }
 
-    progress 34 "Building net10.0-maccatalyst with -p:_ValidateXcodeVersion=false..."
+    progress 34 "Building net11.0-maccatalyst with -p:_ValidateXcodeVersion=false..."
     dotnet build "$PROJECT" \
         -c "$CONFIGURATION" \
-        -f net10.0-maccatalyst \
+        -f net11.0-maccatalyst \
         -p:_ValidateXcodeVersion=false \
         > "$BUILD_LOG" 2>&1
     BUILD_EXIT=$?
     cat "$BUILD_LOG"
     [ "$BUILD_EXIT" -eq 0 ] || fail "Mac Catalyst build failed with exit code $BUILD_EXIT."
 
-    APP_BUNDLE="$(find "$ROOT/games/3D/SilkTriangleSample/bin/$CONFIGURATION/net10.0-maccatalyst" -type d -name '*.app' -print -quit)"
+    APP_BUNDLE="$(find "$ROOT/games/3D/SilkTriangleSample/bin/$CONFIGURATION/net11.0-maccatalyst" -type d -name '*.app' -print -quit)"
     [ -n "$APP_BUNDLE" ] || fail "The Mac Catalyst app bundle was not found after building."
 
     progress 48 "Launching Mac Catalyst application..."

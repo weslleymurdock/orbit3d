@@ -43,13 +43,13 @@ jobs:
             workloads: android
             artifact-name: silk-triangle-sample-android
           - platform: iOS
-            os: macos-26
+            os: xcode-27
             tfm: net11.0-ios
             rid: ios-arm64
             workloads: ios
             artifact-name: silk-triangle-sample-ios
           - platform: MacCatalyst
-            os: macos-26
+            os: xcode-27
             tfm: net11.0-maccatalyst
             rid: maccatalyst-x64
             workloads: maccatalyst
@@ -63,7 +63,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -91,14 +91,14 @@ jobs:
           sudo xcodebuild -runFirstLaunch 2>&1 | Out-Host
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.302'
+          dotnet-version: '11.0.100'
 
       - name: Install MAUI Workloads
         shell: pwsh
         run: |
-          dotnet workload install maui ${{ matrix.workloads }} --version 10.0.302.1
+          dotnet workload install maui ${{ matrix.workloads }} --version 11.0.100.1
           dotnet --info
 
       - name: Configure iOS Code Signing (Physical Device ios-arm64)

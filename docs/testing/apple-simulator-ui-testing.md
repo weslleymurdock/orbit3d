@@ -12,7 +12,7 @@ Windows 11
     └── Remote - SSH
         └── Remote macOS Host (mini.local / 192.168.3.9)
             ├── Git repository: /Users/weslleyluiz/git/orbit3d
-            ├── .NET SDK: 10.0.302 (workloadSet: 10.0.302.1)
+            ├── .NET SDK: 11.0.100 (workloadSet: 11.0.100.1)
             ├── MAUI workloads: ios, maccatalyst, macos, maui
             ├── Xcode: 26.6 (Build 17F113)
             ├── iOS Simulator
@@ -79,8 +79,8 @@ Verified baseline on the remote macOS host (`mini.local`):
 | **Operating System** | macOS Sequoia `15.6.1` (`Build 24G90`, `Darwin 24.6.0 x86_64`) |
 | **Xcode** | `Xcode 26.6` (`Build 17F113`) at `/Applications/Xcode.app/Contents/Developer` |
 | **Command Line Tools** | Xcode 26.6 (`xcode-select -p`) |
-| **.NET SDK** | `10.0.302` (`/usr/local/share/dotnet/dotnet`) |
-| **Workload Set** | `10.0.302.1` (`ios 26.5.10315/10.0.100`, `maccatalyst 26.5.10315/10.0.100`, `maui 10.0.20/10.0.100`) |
+| **.NET SDK** | `11.0.100` (`/usr/local/share/dotnet/dotnet`) |
+| **Workload Set** | `11.0.100.1` (`ios 26.5.10315/10.0.100`, `maccatalyst 26.5.10315/10.0.100`, `maui 10.0.20/10.0.100`) |
 | **iOS Simulator Runtime** | `iOS 26.5` (`26.5 - 23F77`, `com.apple.CoreSimulator.SimRuntime.iOS-26-5`) |
 | **Validation Simulator** | `iPhone Air` (`UDID: 34E134C7-25BB-4925-8A3A-65674A943E87`) |
 | **Node.js & Appium** | Node `v20.19.0`, `appium@3.9.0`, `xcuitest@12.22.8`, `mac2@4.6.1` |
@@ -122,8 +122,8 @@ The repository root pins the exact SDK and workload set in [`global.json`](../..
 ```json
 {
   "sdk": {
-    "version": "10.0.302",
-    "workloadVersion": "10.0.302.1",
+    "version": "11.0.100",
+    "workloadVersion": "11.0.100.1",
     "rollForward": "disable"
   }
 }
@@ -294,6 +294,6 @@ All local screenshots, logs, and TRX files are stored under `artifacts/apple/sta
 
 ## 16. GitHub Actions CI Integration
 
-- **`.github/workflows/dotnet-macos.yml`**: Installs `.NET SDK 10.0.302` and MAUI workload set `10.0.302.1` on `macos-26`, builds `Orbit.Engine`, `Orbit.Input`, `Orbit3D.Engine`, and `Orbit3D.Graphics.Silk` across `net11.0`, `net11.0-ios`, and `net11.0-maccatalyst`, and runs `Orbit.Engine.Tests` and `Orbit3D.Engine.Tests` with TRX artifact upload.
+- **`.github/workflows/dotnet-macos.yml`**: Installs `.NET SDK 11.0.100` and MAUI workload set `11.0.100.1` on `xcode-27`, builds `Orbit.Engine`, `Orbit.Input`, `Orbit3D.Engine`, and `Orbit3D.Graphics.Silk` across `net11.0`, `net11.0-ios`, and `net11.0-maccatalyst`, and runs `Orbit.Engine.Tests` and `Orbit3D.Engine.Tests` with TRX artifact upload.
 - **`.github/workflows/dotnet-windows.yml`**: Builds all engine libraries and runs unit tests (`Orbit.Engine.Tests`, `Orbit3D.Engine.Tests`, `ArtifactDiscoveryTests`), then validates `SilkTriangleSample` across `Windows`, `Android`, `iOS` (including iOS Simulator provisioning and Appium/XCUITest UI tests), and `MacCatalyst`.
 - **`.github/workflows/silk-triangle-sample-build.yml`**: Builds and packages `SilkTriangleSample` artifacts for `Android` (`.apk`), `Windows` (`win-x64`), `MacCatalyst` (`.app.zip`), and `iOS` (packaging `SilkTriangleSample-iossimulator.app.zip` when physical-device Apple signing secrets are absent, or signed `.ipa` when configured).

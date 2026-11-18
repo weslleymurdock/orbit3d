@@ -20,7 +20,7 @@ This document is the authoritative guide for the UI testing infrastructure of `S
 - **CI Hosts:**
   - Windows: `windows-latest`
   - Android: `ubuntu-latest`
-  - iOS & Mac Catalyst: `macos-26`
+  - iOS & Mac Catalyst: `xcode-27`
 - **Artifact Validation Before Automation:** `scripts/validate-artifacts.ps1` validates genuine build artifacts on disk before any UI test or Appium session attempts to interact with the application.
 
 It ensures that:
@@ -95,8 +95,8 @@ Each platform implements the Page Object pattern (`BasePage`), isolating UI auto
 ## 4. Required .NET SDK and Workload Configuration
 
 The repository pins the following toolchain baseline:
-- **.NET SDK:** `10.0.302` (pinned in `global.json`, roll-forward `disable`).
-- **Workload Version:** `10.0.302.1` (pinned in `global.json`).
+- **.NET SDK:** `11.0.100` (pinned in `global.json`, roll-forward `disable`).
+- **Workload Version:** `11.0.100.1` (pinned in `global.json`).
 - **Apple SDK Package Release:** `26.5.10318` (pinned in `Directory.Build.props`; installed workload pack `26.5.10315/10.0.100`).
 - **Android SDK Package Version:** `35.0.0` (pinned in `Directory.Build.props`).
 - **Windows Desktop App Package Version:** `10.0.26100.0` (pinned in `Directory.Build.props`).
@@ -115,7 +115,7 @@ Workloads required per platform:
 As defined in `docs/testing/apple-simulator-ui-testing.md`:
 - Apple workload and runtime packages adhere strictly to `26.5.10318` pinned in `Directory.Build.props` (`ValidateXcodeVersion=false` and `_ValidateXcodeVersion=false` allow newer minor Xcode point releases such as Xcode 26.6 to compile against the 26.5 workload pack).
 - Development and Stage 08 Apple validation use **Visual Studio Code Remote - SSH** from Windows 11 to the provisioned remote macOS host (`macOS 15.6.1`, `Xcode 26.6`) targeting the **iPhone Air — iOS 26.5 Simulator** (`com.apple.CoreSimulator.SimRuntime.iOS-26-5`).
-- Hosted macOS runners (`macos-26`) with `xcode-version: '26.0'` are configured in CI.
+- Hosted macOS runners (`xcode-27`) with `xcode-version: '26.0'` are configured in CI.
 - CI runs `sudo xcodebuild -runFirstLaunch` and provisions the iOS simulator platform runtime (`sudo xcodebuild -downloadPlatform iOS`) before booting the available iPhone simulator (`iPhone Air` preferred).
 - Version pins in `global.json` and `Directory.Build.props` must not be altered arbitrarily.
 
@@ -307,8 +307,8 @@ dotnet test games/3D/SilkTriangleSample.UITests/SilkTriangleSample.UITests.cspro
 ### 11.1 Dedicated Multiplatform Build Workflow (`.github/workflows/silk-triangle-sample-build.yml`)
 This workflow builds and publishes all four application targets (`Android`, `iOS`, `MacCatalyst`, `Windows`) in `Release` configuration (`fail-fast: false`) with 14-day artifact retention:
 - `silk-triangle-sample-android` (`net11.0-android`, `android-arm64` on `ubuntu-latest`)
-- `silk-triangle-sample-ios` (`net11.0-ios` on `macos-26`: builds signed `ios-arm64` `.ipa` when `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_PROVISIONING_PROFILE_BASE64` secrets are configured, or builds and archives the `iossimulator-x64` `.app` bundle `SilkTriangleSample-iossimulator.app.zip` when physical-device signing secrets are absent)
-- `silk-triangle-sample-maccatalyst` (`net11.0-maccatalyst`, `maccatalyst-x64` `.app` on `macos-26`)
+- `silk-triangle-sample-ios` (`net11.0-ios` on `xcode-27`: builds signed `ios-arm64` `.ipa` when `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, and `APPLE_PROVISIONING_PROFILE_BASE64` secrets are configured, or builds and archives the `iossimulator-x64` `.app` bundle `SilkTriangleSample-iossimulator.app.zip` when physical-device signing secrets are absent)
+- `silk-triangle-sample-maccatalyst` (`net11.0-maccatalyst`, `maccatalyst-x64` `.app` on `xcode-27`)
 - `silk-triangle-sample-windows` (`net11.0-windows10.0.19041.0`, `win-x64` on `windows-latest`)
 
 Download and verify artifacts locally on Windows using:
@@ -338,12 +338,12 @@ sample-3d-validation:
           workloads: android
           enable-ui-tests: false
         - platform: iOS
-          os: macos-26
+          os: xcode-27
           target: net11.0-ios
           workloads: ios
           enable-ui-tests: true
         - platform: MacCatalyst
-          os: macos-26
+          os: xcode-27
           target: net11.0-maccatalyst
           workloads: maccatalyst
           enable-ui-tests: false
@@ -353,7 +353,7 @@ sample-3d-validation:
   1. Checkout repository
   2. Platform prerequisites (Java JDK for Android, Xcode 26.0 and first-launch/simulator setup for iOS/MacCatalyst)
   3. Prepare iOS Simulator (deterministic query preferring `iPhone Air`, boot, and UDID export to `GITHUB_ENV`)
-  4. Setup .NET `10.0.302` with matrix workload (`dotnet workload install maui ${{ matrix.workloads }} --version 10.0.302.1`)
+  4. Setup .NET `11.0.100` with matrix workload (`dotnet workload install maui ${{ matrix.workloads }} --version 11.0.100.1`)
   5. Build real sample application in Release (`dotnet build games/3D/SilkTriangleSample/SilkTriangleSample.csproj`)
   6. Validate application build artifact (`validate-artifacts.ps1`)
   7. Setup Node.js and Appium + Platform driver

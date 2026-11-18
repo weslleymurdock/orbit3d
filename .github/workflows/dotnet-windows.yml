@@ -16,11 +16,11 @@ jobs:
       with:
         fetch-depth: 0
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
-        dotnet-version: '10.0.302'
+        dotnet-version: '11.0.100'
     - name: Install MAUI workloads
-      run: dotnet workload install maui --version 10.0.302.1
+      run: dotnet workload install maui --version 11.0.100.1
     - name: Restore dependencies - Orbit.Engine
       run: dotnet restore engine/Orbit.Engine/Orbit.Engine.csproj
     - name: Restore dependencies - Orbit.Input
@@ -72,12 +72,12 @@ jobs:
             workloads: android
             enable-ui-tests: false
           - platform: iOS
-            os: macos-26
+            os: xcode-27
             target: net11.0-ios
             workloads: ios
             enable-ui-tests: true
           - platform: MacCatalyst
-            os: macos-26
+            os: xcode-27
             target: net11.0-maccatalyst
             workloads: maccatalyst
             enable-ui-tests: false
@@ -96,7 +96,7 @@ jobs:
         java-version: '17'
 
     - uses: maxim-lobanov/setup-xcode@v1
-      if: matrix.os == 'macos-26'
+      if: matrix.os == 'xcode-27'
       with:
         xcode-version: '26.0'
 
@@ -159,11 +159,11 @@ jobs:
         Write-Host "Exported ORBIT3D_IOS_SIMULATOR_UDID=$selectedUdid to GITHUB_ENV."
 
     - name: Setup .NET with Workload
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
-        dotnet-version: '10.0.302'
+        dotnet-version: '11.0.*'
     - name: Install workloads
-      run: dotnet workload install maui ${{ matrix.workloads }} --version 10.0.302.1
+      run: dotnet workload install maui ${{ matrix.workloads }} --version 11.0.100.1
     - name: Print Toolchain Diagnostics
       shell: pwsh
       run: |
